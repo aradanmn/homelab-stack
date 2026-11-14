@@ -1,0 +1,642 @@
+# Homelab monitoring in Home Assistant.
+# 2026-11-07: replaces the Prometheus + Grafana stack (claude_sessions#38, option A).
+# Every alert here is a former Grafana rule; thresholds and durations are the
+# same unless noted. Notifications go to the companion app, not Pushover.
+# Problem sensors are "on" when something is wrong, so every alert watches state: "on".
+
+template:
+  - sensor:
+      - name: "HA unavailable entities"
+        unique_id: ha_unavailable_entities
+        state_class: measurement
+        # 2026-11-08: counts only `unavailable` (not `unknown`) and skips stateless domains
+        # (a button/event is `unknown` until used, so it was never a fault). Disabled
+        # entities are not in the state machine, so they drop out on their own.
+        # 2026-11-08: the UGREEN NAS integration's ~200 entities are skipped; when the NAS
+        # is off they all go unavailable at once, and "NAS down" already covers that.
+        state: >-
+          {{ states | selectattr('state', 'eq', 'unavailable')
+             | rejectattr('domain', 'in', ['button', 'event', 'stt', 'tts', 'notify', 'siren'])
+             | rejectattr('entity_id', 'search', '^[a-z_]+[.]ugreen_nas')
+             | list | count }}
+      - name: "HA low battery count"
+        unique_id: ha_low_battery_count
+        state_class: measurement
+        state: >-
+          {{ states.sensor
+             | selectattr('attributes.device_class', 'defined')
+             | selectattr('attributes.device_class', 'eq', 'battery')
+             | map(attribute='state') | reject('in', ['unavailable', 'unknown'])
+             | map('float', 100) | select('lt', 15) | list | count }}
+      # 2026-11-08: UGREEN NAS (mimir). The integration's pool-level "used" equals "total"
+      # (free 0), so fullness is computed from the volume byte counts instead.
+      - name: "NAS volume 1 used"
+        unique_id: nas_volume_1_used_percent
+        unit_of_measurement: "%"
+        state_class: measurement
+        availability: "{{ states('sensor.ugreen_nas_pool_1_volume_1_total_size_raw') | float(0) > 0 }}"
+        state: >-
+          {{ (states('sensor.ugreen_nas_pool_1_volume_1_used_size_raw') | float(0)
+              / states('sensor.ugreen_nas_pool_1_volume_1_total_size_raw') | float(1) * 100) | round(1) }}
+      # 2026-11-08: feeds the "Active problems" tile on the dashboard. Collects every template
+      # binary_sensor with device_class problem (all of this file's alert sensors), so a new
+      # alert sensor shows up on the dashboard without editing a list.
+      # 2026-11-09: count of pending updates (HA core, OS, supervisor, add-ons, UniFi and
+      # doorbell firmware, the UGREEN integration, UGOS). Shown on the dashboard, not alerted:
+      # the patch cadence is monthly.
+      - name: "Updates waiting"
+        unique_id: updates_waiting
+        state_class: measurement
+        state: >-
+          {{ states.update | selectattr('state', 'eq', 'on') | list | count
+             + (1 if is_state('sensor.ugreen_nas_update_available', 'True') else 0) }}
+        attributes:
+          names: >-
+            {{ (states.update | selectattr('state', 'eq', 'on') | map(attribute='name') | list
+                + (['UGOS'] if is_state('sensor.ugreen_nas_update_available', 'True') else []))
+               | join(', ') }}
+      # 2026-11-09: the NAS's real power draw, from its smart-plug outlet (about 22 W idle; 48 W spike
+      # at spin-up). The _3 in the plug's sensor id is only because there are three P316M strips; this
+      # gives it one stable name for the dashboard and the "NAS down" message.
+      - name: "NAS power draw"
+        unique_id: nas_power_draw
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: "{{ states('sensor.unnamed_p316m_tapo_p316m_3_current_consumption_3') | is_number }}"
+        state: "{{ states('sensor.unnamed_p316m_tapo_p316m_3_current_consumption_3') | float(0) }}"
+      - name: "Monitoring active problems"
+        unique_id: monitoring_active_problems
+        state_class: measurement
+        icon: mdi:shield-check
+        state: >-
+          {{ integration_entities('template') | select('match', 'binary_sensor[.]')
+             | select('is_state_attr', 'device_class', 'problem') | select('is_state', 'on')
+             | list | count }}
+        attributes:
+          active: >-
+            {{ integration_entities('template') | select('match', 'binary_sensor[.]')
+               | select('is_state_attr', 'device_class', 'problem') | select('is_state', 'on')
+               | map('state_attr', 'friendly_name') | join(', ') }}
+      - name: "NAS volume 2 used"
+        unique_id: nas_volume_2_used_percent
+        unit_of_measurement: "%"
+        state_class: measurement
+        availability: "{{ states('sensor.ugreen_nas_pool_2_volume_1_total_size_raw') | float(0) > 0 }}"
+        state: >-
+          {{ (states('sensor.ugreen_nas_pool_2_volume_1_used_size_raw') | float(0)
+              / states('sensor.ugreen_nas_pool_2_volume_1_total_size_raw') | float(1) * 100) | round(1) }}
+
+  - binary_sensor:
+      # was "AC Running - sustained runtime": min_over_time 90m == 1
+      - name: "AC running 90 min"
+        unique_id: alert_ac_running_90m
+        device_class: problem
+        delay_on: "01:30:00"
+        state: "{{ states('sensor.ac_running') | int(0) == 1 }}"
+      - name: "Furnace running 90 min"
+        unique_id: alert_furnace_running_90m
+        device_class: problem
+        delay_on: "01:30:00"
+        state: "{{ states('sensor.furnace_running') | int(0) == 1 }}"
+      - name: "Dryer running 90 min"
+        unique_id: alert_dryer_running_90m
+        device_class: problem
+        delay_on: "01:30:00"
+        state: "{{ states('sensor.dryer_running') | int(0) == 1 }}"
+      # was "Unexplained home power draw - sustained rise": avg 20m > 1200 W.
+      # Here: continuously above 1200 W for 20 min (stricter than the average).
+      - name: "Unexplained power over 1200 W"
+        unique_id: alert_unexplained_power_1200w
+        device_class: problem
+        delay_on: "00:20:00"
+        state: "{{ states('sensor.home_energy_unexplained') | float(0) > 1200 }}"
+      # was "Home Assistant unavailable-entity spike" > 150 for 2 h. Baseline on
+      # 2026-11-07 is 149 (retired LXC trackers, TP-Link strip), so 200.
+      # 2026-11-08: the counter now excludes `unknown` and stateless domains; a healthy
+      # day is under 15, so 25.
+      - name: "Unavailable entity spike"
+        unique_id: alert_unavailable_entity_spike
+        device_class: problem
+        delay_on: "02:00:00"
+        state: "{{ states('sensor.ha_unavailable_entities') | int(0) > 25 }}"
+      # was "Home Assistant low battery device" < 15 % for 1 h
+      - name: "Low battery device"
+        unique_id: alert_low_battery_device
+        device_class: problem
+        delay_on: "01:00:00"
+        state: "{{ states('sensor.ha_low_battery_count') | int(0) > 0 }}"
+      # was "Internet/WAN drop detected" (unpoller). Now: ping 1.1.1.1 failing 2 min.
+      - name: "Internet down"
+        unique_id: alert_internet_down
+        device_class: problem
+        delay_on: "00:02:00"
+        state: "{{ is_state('binary_sensor.1_1_1_1', 'off') }}"
+      # was "Service probe failed" (blackbox). 3 min, so a restart does not page.
+      # (Mattermost probe removed 2026-11-07 with Mattermost itself.)
+      - name: "AdGuard down"
+        unique_id: alert_adguard_down
+        device_class: problem
+        delay_on: "00:03:00"
+        state: "{{ not is_state('binary_sensor.adguard_ui', 'on') }}"
+      - name: "Minecraft server down"
+        unique_id: alert_minecraft_down
+        device_class: problem
+        delay_on: "00:03:00"
+        state: "{{ is_state('binary_sensor.minecraft_server_status', 'off') }}"
+      # was "TLS certificate expiring" < 14 days (cert_expiry integration, ha-web:443 via Traefik)
+      - name: "TLS certificate expiring"
+        unique_id: alert_tls_expiring
+        device_class: problem
+        state: >-
+          {% set t = states('sensor.wildcard_cert_expiry') %}
+          {{ t not in ['unknown', 'unavailable'] and (as_datetime(t) - now()).total_seconds() < 14 * 86400 }}
+      # was "Restic backup missed" > 36 h. restic_backup.sh sets the input_datetime
+      # after every success; a missing/unset value counts as stale on purpose.
+      # host root filesystem (Glances, /rootfs = the host's /) over 90 % for 10 min;
+      # replaces the Proxmox storage-pool rule. Unavailable Glances reads as 0.
+      - name: "Host disk over 90 percent"
+        unique_id: alert_host_disk_90
+        device_class: problem
+        delay_on: "00:10:00"
+        state: "{{ states('sensor.homelab_rootfs_disk_usage') | float(0) > 90 }}"
+      - name: "Host memory over 90 percent"
+        unique_id: alert_host_memory_90
+        device_class: problem
+        delay_on: "00:15:00"
+        state: "{{ states('sensor.homelab_memory_usage') | float(0) > 90 }}"
+      - name: "Restic backup stale"
+        unique_id: alert_restic_backup_stale
+        device_class: problem
+        state: "{{ (now().timestamp() - state_attr('input_datetime.restic_backup_last_success', 'timestamp') | float(0)) > 129600 }}"
+      # 2026-11-08: UGREEN NAS (mimir, claude_sessions#26 "NAS monitoring").
+      # Down = the web UI probe is not "on" (same pattern as AdGuard) OR the integration
+      # has lost the NAS (login/API failing while the UI still answers). 5 min so a
+      # UGOS reboot or update does not page.
+      - name: "NAS down"
+        unique_id: alert_nas_down
+        device_class: problem
+        delay_on: "00:05:00"
+        state: >-
+          {{ not is_state('binary_sensor.nas_ui', 'on')
+             or states('sensor.ugreen_nas_server_status') in ['unavailable', 'unknown'] }}
+      # Any pool, volume, disk or the server itself reporting something other than
+      # "Normal" (a RAID1 degrade or a failing disk shows up here). unavailable/unknown
+      # are skipped: "NAS down" owns those, so one outage is one alert.
+      - name: "NAS storage unhealthy"
+        unique_id: alert_nas_storage_unhealthy
+        device_class: problem
+        delay_on: "00:05:00"
+        state: >-
+          {{ [ 'sensor.ugreen_nas_server_status',
+               'sensor.ugreen_nas_pool_1_status', 'sensor.ugreen_nas_pool_2_status',
+               'sensor.ugreen_nas_pool_1_volume_1_health', 'sensor.ugreen_nas_pool_2_volume_1_health',
+               'sensor.ugreen_nas_pool_1_disk_1_status', 'sensor.ugreen_nas_pool_1_disk_2_status',
+               'sensor.ugreen_nas_pool_2_disk_1_status' ]
+             | map('states') | reject('in', ['Normal', 'unavailable', 'unknown'])
+             | list | count > 0 }}
+      # Any volume over 85 % for 30 min. Not the pool sensors (see above).
+      - name: "NAS volume over 85 percent"
+        unique_id: alert_nas_volume_85
+        device_class: problem
+        delay_on: "00:30:00"
+        state: >-
+          {{ states('sensor.nas_volume_1_used') | float(0) > 85
+             or states('sensor.nas_volume_2_used') | float(0) > 85 }}
+      # CPU over 176 F (80 C) or any disk over 122 F (50 C) for 15 min, or UGOS's own
+      # temperature status leaves 0. The F thresholds assume HA's imperial unit system
+      # (as the host CPU gauge does); the UGOS status code is unit-independent.
+      - name: "NAS running hot"
+        unique_id: alert_nas_hot
+        device_class: problem
+        delay_on: "00:15:00"
+        state: >-
+          {{ states('sensor.ugreen_nas_cpu_temperature') | float(0) > 176
+             or ['sensor.ugreen_nas_pool_1_disk_1_temperature',
+                 'sensor.ugreen_nas_pool_1_disk_2_temperature',
+                 'sensor.ugreen_nas_pool_2_disk_1_temperature']
+                | map('states') | map('float', 0) | select('gt', 122) | list | count > 0
+             or states('sensor.ugreen_nas_temperature_status_code') not in ['0', 'unavailable', 'unknown'] }}
+      # 2026-11-09: signals that existed but nothing watched (claude_sessions#26).
+      # Fail open: an unavailable/unknown reading is "cannot tell", never a problem, so a
+      # flickering sensor does not page (device outages are covered by the two rules below).
+      # 10 containers are expected on homelab (docker compose ps, 2026-11-09); change the
+      # number when the stack changes.
+      - name: "Stack container down"
+        unique_id: alert_stack_container_down
+        device_class: problem
+        delay_on: "00:05:00"
+        state: "{{ states('sensor.homelab_containers_active') | int(10) < 10 }}"
+      # HA's own backup: no success in 36 h (the automatic backup runs daily, about 05:00).
+      - name: "HA backup stale"
+        unique_id: alert_ha_backup_stale
+        device_class: problem
+        state: >-
+          {% set t = states('sensor.backup_last_successful_automatic_backup') %}
+          {{ t not in ['unknown', 'unavailable'] and (now() - as_datetime(t)).total_seconds() > 36 * 3600 }}
+      # The radon mitigation fan (the plug is still named bedside_lamp): about 58 W when
+      # running, 56.7 to 59.4 W for a week. Under 20 W for 15 min means stopped or unplugged.
+      - name: "Radon fan stopped"
+        unique_id: alert_radon_fan_stopped
+        device_class: problem
+        delay_on: "00:15:00"
+        state: "{{ states('sensor.bedside_lamp_current_consumption') | float(999) < 20 }}"
+      # Aquarium pump: 15.2 to 16.9 W every day for a week (one dip to 0 on 2026-11-03).
+      - name: "Aquarium pump stopped"
+        unique_id: alert_aquarium_pump_stopped
+        device_class: problem
+        delay_on: "00:15:00"
+        state: "{{ states('sensor.unnamed_p316m_aquarium_pump_current_consumption') | float(999) < 5 }}"
+      # Any UniFi device not "connected" (the gateway, 3 switches, 5 access points).
+      # unavailable counts here: if the gateway is down the integration cannot reach it.
+      - name: "UniFi device offline"
+        unique_id: alert_unifi_device_offline
+        device_class: problem
+        delay_on: "00:05:00"
+        state: >-
+          {{ ['sensor.cloud_gateway_max_state', 'sensor.familyrmsw_state', 'sensor.laundryrmsw_state',
+              'sensor.officermsw_state', 'sensor.officeap_state', 'sensor.kitchenrmap_state',
+              'sensor.kidsrmap_state', 'sensor.masterbdrmap_state', 'sensor.familyrmap_state']
+             | map('states') | reject('eq', 'connected') | list | count > 0 }}
+      # One important device gone quiet; the 25-entity spike rule cannot see a single device.
+      - name: "Key device unavailable"
+        unique_id: alert_key_device_unavailable
+        device_class: problem
+        delay_on: "00:10:00"
+        state: >-
+          {{ ['camera.front_door_fluent', 'sensor.sense_1000019509_energy', 'climate.thermostat',
+              'sensor.bedside_lamp_current_consumption',
+              'sensor.unnamed_p316m_aquarium_pump_current_consumption']
+             | map('states') | select('eq', 'unavailable') | list | count > 0 }}
+      # The share is capped at 1460 G (80 % of the disk, docker-compose.yml), so 80 % is the
+      # plateau; over 85 % means something else is filling it or the cap is not working.
+      - name: "Time Machine disk over 85 percent"
+        unique_id: alert_time_machine_disk_85
+        device_class: problem
+        delay_on: "00:30:00"
+        state: "{{ states('sensor.homelab_rootfs_mnt_timemachine_disk_usage') | float(0) > 85 }}"
+      # The Green's own data disk (28 GB; backups are most of it). HA exposes no entity for it
+      # here, so the command_line sensor below reads df. 85 % is far above the steady state
+      # (retention keeps 3 backups, about 63 %).
+      # 2026-11-09: the NAS is plugged into outlet 3 of the Computer Desk power strip (Tapo P316M_3).
+      # Switched off = the NAS lost power without shutting down. Critical push. An unavailable plug
+      # (Wi-Fi) is "cannot tell", not a problem.
+      - name: "NAS plug off"
+        unique_id: alert_nas_plug_off
+        device_class: problem
+        delay_on: "00:01:00"
+        state: "{{ is_state('switch.unnamed_p316m_tapo_p316m_3_3', 'off') }}"
+      - name: "HA disk over 85 percent"
+        unique_id: alert_ha_disk_85
+        device_class: problem
+        delay_on: "00:30:00"
+        state: "{{ states('sensor.ha_disk_used') | float(0) > 85 }}"
+
+binary_sensor:
+  - platform: rest
+    name: AdGuard UI
+    unique_id: probe_adguard_ui
+    resource: !secret adguard_probe_url
+    # the login page is a JS shell without the word AdGuard; any HTML document is "up"
+    value_template: "{{ 'doctype html' in (value | lower) }}"
+    scan_interval: 60
+    timeout: 10
+  # 2026-11-09: UGREEN NAS (mimir). Probes UGOS directly, not through Traefik, so it
+  # shows the NAS itself; any HTML document from /desktop/ means UGOS is serving.
+  - platform: rest
+    name: NAS UI
+    unique_id: probe_nas_ui
+    resource: !secret nas_probe_url
+    value_template: "{{ '<html' in (value | lower) }}"
+    scan_interval: 60
+    timeout: 10
+
+# 2026-11-09: the Green's data-disk usage in percent (df on /config, the same partition as
+# /backup). Feeds "HA disk over 85 percent". Every 5 minutes.
+command_line:
+  - sensor:
+      name: "HA disk used"
+      unique_id: ha_disk_used_percent
+      command: "df -P /config | awk 'NR==2 {gsub(/%/,\"\",$5); print $5}'"
+      unit_of_measurement: "%"
+      scan_interval: 300
+      state_class: measurement
+
+input_datetime:
+  restic_backup_last_success:
+    name: Restic backup last success
+    has_date: true
+    has_time: true
+    icon: mdi:backup-restore
+
+# Dead-man's switch: Healthchecks.io pages (its own channel) if these stop.
+# Replaces alerting-heartbeat.timer. Only pings while the internet is up, so a
+# WAN outage is also "silence".
+rest_command:
+  healthchecks_ping:
+    url: !secret healthchecks_ping_url
+    method: get
+    timeout: 10
+
+automation:
+  - id: monitoring_healthchecks_deadman
+    alias: Monitoring - Healthchecks dead-man ping
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/15"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.internet_down
+        state: "off"
+    actions:
+      - action: rest_command.healthchecks_ping
+
+alert:
+  internet_down:
+    name: Internet down
+    entity_id: binary_sensor.internet_down
+    state: "on"
+    repeat: [30, 120]
+    can_acknowledge: true
+    title: "Internet down"
+    message: "1.1.1.1 has not answered for 2 minutes."
+    done_message: "Internet is back."
+    notifiers: [phones]
+    data:
+      push:
+        sound:
+          name: default
+          critical: 1
+          volume: 1.0
+  adguard_down:
+    name: AdGuard down
+    entity_id: binary_sensor.adguard_down
+    state: "on"
+    repeat: [30, 120]
+    can_acknowledge: true
+    title: "AdGuard down"
+    message: "The AdGuard web UI is not answering. DNS 2 on the HA Green carries the house meanwhile."
+    done_message: "AdGuard is answering again."
+    notifiers: [phones]
+    data: {push: {sound: {name: default, critical: 1, volume: 1.0}}}
+  minecraft_down:
+    name: Minecraft server down
+    entity_id: binary_sensor.minecraft_server_down
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "Minecraft server down"
+    message: "Port 25565 on homelab is not answering."
+    done_message: "Minecraft server is back."
+    notifiers: [phones]
+  tls_expiring:
+    name: TLS certificate expiring
+    entity_id: binary_sensor.tls_certificate_expiring
+    state: "on"
+    repeat: [1440]
+    can_acknowledge: true
+    title: "TLS certificate expiring"
+    message: "The wildcard certificate expires in under 14 days. ACME renewal in Traefik may be failing."
+    done_message: "Certificate renewed."
+    notifiers: [phones]
+  restic_stale:
+    name: Restic backup stale
+    entity_id: binary_sensor.restic_backup_stale
+    state: "on"
+    repeat: [720]
+    can_acknowledge: true
+    title: "Restic backup stale"
+    message: "No successful restic backup for more than 36 hours. journalctl -u restic-backup on homelab."
+    done_message: "Restic backup succeeded."
+    notifiers: [phones]
+  ac_running:
+    name: AC running 90+ minutes
+    entity_id: binary_sensor.ac_running_90_min
+    state: "on"
+    repeat: [60, 180]
+    can_acknowledge: true
+    title: "AC running 90+ min"
+    message: "The AC has run continuously for 90+ minutes. Open door or window, or an equipment issue."
+    done_message: "AC cycle ended."
+    notifiers: [phones]
+  furnace_running:
+    name: Furnace running 90+ minutes
+    entity_id: binary_sensor.furnace_running_90_min
+    state: "on"
+    repeat: [60, 180]
+    can_acknowledge: true
+    title: "Furnace running 90+ min"
+    message: "The furnace has run continuously for 90+ minutes. Open door or window, or an equipment issue."
+    done_message: "Furnace cycle ended."
+    notifiers: [phones]
+  dryer_running:
+    name: Dryer running 90+ minutes
+    entity_id: binary_sensor.dryer_running_90_min
+    state: "on"
+    repeat: [60, 180]
+    can_acknowledge: true
+    title: "Dryer running 90+ min"
+    message: "The dryer has run continuously for 90+ minutes. Stuck cycle, jammed door lock, or equipment issue."
+    done_message: "Dryer cycle ended."
+    notifiers: [phones]
+  unexplained_power:
+    name: Unexplained power draw
+    entity_id: binary_sensor.unexplained_power_over_1200_w
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "Unexplained power over 1200 W"
+    message: "Power not accounted for by any monitored plug or Sense device has been above 1200 W for 20 minutes."
+    done_message: "Unexplained power is back under 1200 W."
+    notifiers: [phones]
+  unavailable_spike:
+    name: Unavailable entity spike
+    entity_id: binary_sensor.unavailable_entity_spike
+    state: "on"
+    repeat: [720]
+    can_acknowledge: true
+    title: "HA unavailable-entity spike"
+    message: "More than 25 entities unavailable for 2 hours (healthy is under 15). An integration or device is probably down."
+    done_message: "Unavailable entities back to baseline."
+    notifiers: [phones]
+  host_disk:
+    name: Host disk over 90 percent
+    entity_id: binary_sensor.host_disk_over_90_percent
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "homelab root disk over 90 %"
+    message: "The host's root filesystem is over 90 % full. docker system df, restic cache, Mattermost data are the usual suspects."
+    done_message: "Root disk back under 90 %."
+    notifiers: [phones]
+  host_memory:
+    name: Host memory over 90 percent
+    entity_id: binary_sensor.host_memory_over_90_percent
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "homelab memory over 90 %"
+    message: "Host memory has been above 90 % for 15 minutes."
+    done_message: "Host memory back under 90 %."
+    notifiers: [phones]
+  low_battery:
+    name: Low battery device
+    entity_id: binary_sensor.low_battery_device
+    state: "on"
+    repeat: [1440]
+    can_acknowledge: true
+    title: "Low battery"
+    message: "A battery-powered device is below 15 %."
+    done_message: "Batteries fine."
+    notifiers: [phones]
+  nas_down:
+    name: NAS down
+    entity_id: binary_sensor.nas_down
+    state: "on"
+    repeat: [30, 120]
+    can_acknowledge: true
+    title: "NAS (mimir) down"
+    message: >-
+      The NAS web UI or the Home Assistant UGREEN integration has not answered for 5 minutes.
+      The NAS outlet draws {{ states('sensor.nas_power_draw') }} W now (normal is about 22 W):
+      near 0 means it has no power (check the plug and outlet), about normal means it is powered
+      but not answering. If the UI loads, the integration login may be failing.
+    done_message: "NAS is answering again."
+    notifiers: [phones]
+    data: {push: {sound: {name: default, critical: 1, volume: 1.0}}}
+  nas_storage:
+    name: NAS storage unhealthy
+    entity_id: binary_sensor.nas_storage_unhealthy
+    state: "on"
+    repeat: [30, 120]
+    can_acknowledge: true
+    title: "NAS storage unhealthy"
+    message: "A pool, volume or disk on mimir reports something other than Normal. Open the NAS: Control Panel, Storage. A degraded RAID1 means one of the two 1 TB drives has a problem."
+    done_message: "NAS storage is Normal again."
+    notifiers: [phones]
+    data: {push: {sound: {name: default, critical: 1, volume: 1.0}}}
+  nas_volume_full:
+    name: NAS volume over 85 percent
+    entity_id: binary_sensor.nas_volume_over_85_percent
+    state: "on"
+    repeat: [1440]
+    can_acknowledge: true
+    title: "NAS volume over 85 %"
+    message: "A volume on mimir has been over 85 % full for 30 minutes. Volume 2 mirrors Volume 1's backups, so check what grew."
+    done_message: "NAS volumes back under 85 %."
+    notifiers: [phones]
+  nas_hot:
+    name: NAS running hot
+    entity_id: binary_sensor.nas_running_hot
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "NAS running hot"
+    message: "mimir's CPU or a disk has been above its temperature limit for 15 minutes (CPU 176 F, disks 122 F). Check airflow and the fan."
+    done_message: "NAS temperatures are back to normal."
+    notifiers: [phones]
+  container_down:
+    name: Stack container down
+    entity_id: binary_sensor.stack_container_down
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "Docker container down"
+    message: "Fewer than 10 containers are running on homelab (Glances). On the host: docker compose ps in the homelab-stack checkout, then docker logs <name>. The expected count is in packages/monitoring.yaml."
+    done_message: "All 10 containers are running again."
+    notifiers: [phones]
+  ha_backup_stale:
+    name: HA backup stale
+    entity_id: binary_sensor.ha_backup_stale
+    state: "on"
+    repeat: [720]
+    can_acknowledge: true
+    title: "HA backup stale"
+    message: "No successful Home Assistant backup for more than 36 hours. Settings, System, Backups. A restart during a backup can interrupt it."
+    done_message: "HA backup succeeded."
+    notifiers: [phones]
+  radon_fan:
+    name: Radon fan stopped
+    entity_id: binary_sensor.radon_fan_stopped
+    state: "on"
+    repeat: [30, 120]
+    can_acknowledge: true
+    title: "Radon fan stopped"
+    message: "The radon fan plug has drawn under 20 W for 15 minutes (normal is about 58 W). Check the plug and the fan in the garage."
+    done_message: "The radon fan is running again."
+    notifiers: [phones]
+    data: {push: {sound: {name: default, critical: 1, volume: 1.0}}}
+  aquarium_pump:
+    name: Aquarium pump stopped
+    entity_id: binary_sensor.aquarium_pump_stopped
+    state: "on"
+    repeat: [30, 120]
+    can_acknowledge: true
+    title: "Aquarium pump stopped"
+    message: "The aquarium pump plug has drawn under 5 W for 15 minutes (normal is about 16 W). Check the pump and the plug; the fish need circulation."
+    done_message: "The aquarium pump is running again."
+    notifiers: [phones]
+    data: {push: {sound: {name: default, critical: 1, volume: 1.0}}}
+  unifi_offline:
+    name: UniFi device offline
+    entity_id: binary_sensor.unifi_device_offline
+    state: "on"
+    repeat: [60, 240]
+    can_acknowledge: true
+    title: "UniFi device offline"
+    message: "A UniFi switch, access point or the gateway has not been connected for 5 minutes. Monitoring, Network shows which."
+    done_message: "All UniFi devices are connected again."
+    notifiers: [phones]
+  key_device:
+    name: Key device unavailable
+    entity_id: binary_sensor.key_device_unavailable
+    state: "on"
+    repeat: [120, 480]
+    can_acknowledge: true
+    title: "Key device unavailable"
+    message: "The doorbell camera, Sense, the thermostat, the radon plug or the pump plug has been unavailable for 10 minutes. Settings, Devices and services."
+    done_message: "Key devices are back."
+    notifiers: [phones]
+  timemachine_disk:
+    name: Time Machine disk over 85 percent
+    entity_id: binary_sensor.time_machine_disk_over_85_percent
+    state: "on"
+    repeat: [1440]
+    can_acknowledge: true
+    title: "Time Machine disk over 85 %"
+    message: "The Time Machine disk is over 85 percent full. The share is capped at 1,460 GB (80 percent of the disk), so something else is using the space or the cap is not working."
+    done_message: "Time Machine disk is back under 85 percent."
+    notifiers: [phones]
+  nas_plug_off:
+    name: NAS plug off
+    entity_id: binary_sensor.nas_plug_off
+    state: "on"
+    repeat: [15, 60]
+    can_acknowledge: true
+    title: "NAS plug switched off"
+    message: "The smart plug the NAS is on (Office power strip, outlet 3, Tapo P316M_3) is off. Turn it back on in the Tapo app or Home Assistant. The NAS lost power without shutting down."
+    done_message: "The NAS plug is back on. Give UGOS a few minutes to boot, then check Storage for a RAID check."
+    notifiers: [phones]
+    data: {push: {sound: {name: default, critical: 1, volume: 1.0}}}
+  ha_disk:
+    name: HA disk over 85 percent
+    entity_id: binary_sensor.ha_disk_over_85_percent
+    state: "on"
+    repeat: [1440]
+    can_acknowledge: true
+    title: "HA disk over 85 %"
+    message: "The Home Assistant Green's data disk is over 85 percent full (28 GB). Settings, System, Storage: old backups are the usual cause; retention keeps 3."
+    done_message: "HA disk is back under 85 percent."
+    notifiers: [phones]
+
+# The dashboard that shows all of the above (sidebar "Monitoring"); YAML mode so
+# it lives next to this file. Dashboard edits need only a page reload.
+lovelace:
+  dashboards:
+    monitoring-yaml:
+      mode: yaml
+      title: Monitoring
+      icon: mdi:heart-pulse
+      show_in_sidebar: true
+      filename: dashboards/monitoring.yaml

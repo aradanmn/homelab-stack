@@ -1,0 +1,54 @@
+ai_home_summary_refresh:
+  alias: "Refresh AI Home Summary"
+  icon: mdi:robot-outline
+  sequence:
+    - action: ai_task.generate_data
+      data:
+        task_name: "home_summary"
+        entity_id: ai_task.utility_room_claude_ai_task
+        instructions: >-
+          Current home state:
+          - Thermostat: {{ states('climate.thermostat') }}, target
+            {{ state_attr('climate.thermostat', 'temperature') }}°F, current
+            {{ state_attr('climate.thermostat', 'current_temperature') }}°F,
+            action {{ state_attr('climate.thermostat', 'hvac_action') }}
+          - Presence: {{ states('person.scott_dean') }}
+          - Occupancy: Living Room {{ states('binary_sensor.living_room_occupancy') }},
+            Family Room {{ states('binary_sensor.family_room_occupancy') }},
+            Master Bedroom {{ states('binary_sensor.master_bedroom_occupancy') }},
+            Playroom {{ states('binary_sensor.kids_room_occupancy') }}
+          - Lights/switches currently on:
+            {% set entities = [
+                'light.dining_room_dining_room_chandelier',
+                'light.family_room_family_room_floor_lamp',
+                'light.living_room_living_room_ceiling_fan_light',
+                'switch.exercise_room_exercise_room_main_lights',
+                'switch.kids_room_kids_room_main_lights',
+                'switch.office_office_main_lights',
+                'switch.utility_room_utility_room_main_lights',
+                'switch.downstairs_hallway_downstairs_hallway_sconces',
+                'switch.upstairs_hallway_upstairs_hallway_main_lights',
+                'switch.master_bedroom_master_bedroom_ceiling_fan_light',
+                'switch.front_exterior_front_exterior_driveway_light',
+                'switch.front_exterior_front_exterior_string_lights',
+                'switch.back_exterior_back_exterior_deck_lights',
+              ] %}
+            {% set on_names = namespace(items=[]) %}
+            {% for e in entities %}
+              {% if is_state(e, 'on') %}
+                {% set on_names.items = on_names.items + [state_attr(e, 'friendly_name')] %}
+              {% endif %}
+            {% endfor %}
+            {{ on_names.items | join(', ') if on_names.items else 'none' }}
+          - Media playing:
+            {{ states.media_player | selectattr('state', 'eq', 'playing') | map(attribute='name') | list | join(', ') or 'nothing' }}
+
+          Write ONE natural, friendly sentence (under 140 characters)
+          summarizing the house right now. No preamble, no markdown, just
+          the sentence.
+      response_variable: summary_result
+    - action: input_text.set_value
+      target:
+        entity_id: input_text.ai_home_summary
+      data:
+        value: "{{ (summary_result.data | trim)[:250] }}"

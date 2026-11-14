@@ -1,0 +1,20 @@
+# Deploys the stack with the fetched secrets. `systemctl restart
+# homelab-stack` after a `git pull` is the deploy command; it re-runs
+# `docker compose up -d`, which recreates only what changed. Containers
+# keep running on their own restart policy between deploys and across
+# reboots; the secrets unit only has to populate /run/homelab-stack first.
+[Unit]
+Description=homelab-stack: docker compose up with secrets from /run/homelab-stack
+Requires=docker.service homelab-stack-secrets.service
+After=docker.service homelab-stack-secrets.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/home/claude/workspace/homelab-stack
+# .env: site settings (addresses, domain). /run/...: secrets. Later files win.
+ExecStart=/usr/bin/docker compose --env-file .env --env-file /run/homelab-stack/env up -d --remove-orphans
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,108 @@
+# Routes for every backend that is NOT a container in this compose stack
+# (containers are discovered through their Docker labels instead).
+#
+# Traefik runs this file as a Go template before reading it as YAML:
+# {{ env "NAME" }} is replaced with that variable from the traefik
+# container's environment, which docker-compose.yml fills from .env. So the
+# domain and every backend address live in .env, not here. A missing
+# variable renders as an empty string without any error; the compose file
+# guards against that by refusing to deploy when one is unset.
+#
+# Naming: every hostname ends in "-web". A bare service name collided with
+# the container of the same name on Docker's internal DNS.
+
+http:
+  routers:
+    # The network controller's own UI (HTTPS, self-signed).
+    unifi-rtr:
+      rule: "Host(`ui-web.{{ env "DOMAIN" }}`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: unifi-svc
+
+    # BlueMap, published on port 8100 by the Minecraft container on this host.
+    bluemap-rtr:
+      rule: "Host(`map.{{ env "DOMAIN" }}`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: bluemap-svc
+
+    # Scrypted's own UI (host network, self-signed certificate) behind the
+    # wildcard certificate like everything else.
+    scrypted-rtr:
+      rule: "Host(`scrypted-web.{{ env "DOMAIN" }}`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: scrypted-svc
+
+    # NAS web UI (plain HTTP; it redirects / to /desktop/ with a relative
+    # Location, so no rewrite is needed). Needs a DNS rewrite of this name
+    # to the Docker host.
+    nas-rtr:
+      rule: "Host(`nas-web.{{ env "DOMAIN" }}`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: nas-svc
+
+    homeassistant-rtr:
+      rule: "Host(`ha-web.{{ env "DOMAIN" }}`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: homeassistant-svc
+
+    # Exists ONLY to make Traefik request the wildcard certificate, through
+    # its tls.domains: Traefik never requests a wildcard from the names it
+    # sees in traffic, it needs an explicit declaration, and that is a
+    # router-level field, not a static one. Priority 1 (lowest) so it can
+    # never win against a real Host() router above. It needs no backend.
+    wildcard-acme-trigger:
+      rule: "HostRegexp(`{host:.+}`)"
+      priority: 1
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+        domains:
+          - main: "*.{{ env "DOMAIN" }}"
+      service: noop@internal
+
+  services:
+    unifi-svc:
+      loadBalancer:
+        servers:
+          - url: "{{ env "UNIFI_URL" }}"
+        serversTransport: insecure-backend@file
+
+    bluemap-svc:
+      loadBalancer:
+        servers:
+          - url: "{{ env "BLUEMAP_URL" }}"
+
+    scrypted-svc:
+      loadBalancer:
+        servers:
+          - url: "{{ env "SCRYPTED_URL" }}"
+        serversTransport: insecure-backend@file
+
+    nas-svc:
+      loadBalancer:
+        servers:
+          - url: "{{ env "NAS_URL" }}"
+
+    homeassistant-svc:
+      loadBalancer:
+        servers:
+          - url: "{{ env "HA_URL" }}"
+
+  # This must live under http: -- Traefik's file provider treats a top-level
+  # serversTransports as unrelated to the HTTP config, which silently broke
+  # every router referencing insecure-backend@file ("servers transport not
+  # found").
+  serversTransports:
+    insecure-backend:
+      insecureSkipVerify: true  # the controller UI and Scrypted use self-signed certificates

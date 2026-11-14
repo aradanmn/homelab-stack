@@ -1,0 +1,470 @@
+# Monitoring dashboard (YAML mode, registered from packages/monitoring.yaml).
+# 2026-11-07: the view of what replaced Grafana. Edit this file over ssh and
+# reload the page; no HA restart needed for dashboard changes.
+# 2026-11-08: reorganised into four views. Status is one screen (grouped by thing, not by
+# card type); Network absorbs the old "UniFi Network" dashboard; Trends holds every history
+# graph; Alerts holds the detail lists and the silence toggles. Gauges sit two per row
+# (grid_options columns 6) so they stay compact on a phone as well as a laptop.
+title: Monitoring
+views:
+  # ---------------------------------------------------------------- Status
+  - title: Status
+    path: status
+    icon: mdi:heart-pulse
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Right now
+            icon: mdi:alert-circle-outline
+          # Headline from the alert entities: idle = fine, on = needs you, off = acknowledged
+          # (still wrong). Red for the seven that page critically; keep this list and the one on
+          # the Alerts tab in sync with the alerts that carry push.sound.critical.
+          - type: markdown
+            content: |-
+              {% set alerts = states.alert | list %}
+              {% set crit = ['alert.internet_down', 'alert.adguard_down', 'alert.nas_down', 'alert.nas_storage', 'alert.nas_plug_off', 'alert.radon_fan', 'alert.aquarium_pump'] %}
+              {% set bad = alerts | rejectattr('state', 'in', ['idle', 'unavailable', 'unknown']) | list %}
+              {% set out = bad | selectattr('entity_id', 'in', crit) | list %}
+              {% set open = bad | selectattr('state', 'eq', 'on') | list %}
+              {% if not bad -%}
+              ### ✅ All systems normal
+              {%- else -%}
+              ### {{ '🛑 Outage' if out else '⚠️ ' ~ (bad | count) ~ (' issue' if (bad | count) == 1 else ' issues') }}
+              {{ bad | map(attribute='name') | join(', ') }}{{ ' (acknowledged)' if not open else '' }}
+              {%- endif %}
+          - type: heading
+            heading: Services
+            icon: mdi:check-network-outline
+            heading_style: subtitle
+          - type: tile
+            entity: binary_sensor.1_1_1_1
+            name: Internet
+            grid_options: {columns: 6}
+          - type: tile
+            entity: binary_sensor.adguard_ui
+            name: AdGuard
+            grid_options: {columns: 6}
+          - type: tile
+            entity: binary_sensor.nas_ui
+            name: NAS web UI
+            grid_options: {columns: 6}
+          - type: tile
+            entity: binary_sensor.minecraft_server_status
+            name: Minecraft
+            grid_options: {columns: 6}
+          - type: markdown
+            title: Links
+            # site-specific link list; see secrets.yaml.example
+            content: !secret monitoring_links_md
+      - type: grid
+        cards:
+          - type: heading
+            heading: Homelab host
+            icon: mdi:server
+          - type: gauge
+            entity: sensor.homelab_rootfs_disk_usage
+            name: Root disk
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 75, red: 90}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.homelab_memory_usage
+            name: Memory
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 75, red: 90}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.homelab_cpu_usage
+            name: CPU
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 70, red: 90}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.homelab_package_id_0_temperature
+            name: CPU temp
+            min: 60
+            max: 212
+            severity: {green: 60, yellow: 160, red: 185}
+            grid_options: {columns: 6}
+          - type: entities
+            entities:
+              - entity: sensor.homelab_containers_active
+                name: Containers running
+              - entity: sensor.homelab_rootfs_mnt_timemachine_disk_usage
+                name: Time Machine disk
+              - entity: sensor.homelab_uptime
+                name: Host up since
+      - type: grid
+        cards:
+          - type: heading
+            heading: NAS (mimir)
+            icon: mdi:nas
+          - type: gauge
+            entity: sensor.nas_volume_1_used
+            name: Volume 1 (RAID1)
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 70, red: 85}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.nas_volume_2_used
+            name: Volume 2
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 70, red: 85}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.ugreen_nas_cpu_usage
+            name: CPU
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 70, red: 90}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.ugreen_nas_cpu_temperature
+            name: CPU temp
+            min: 60
+            max: 212
+            severity: {green: 60, yellow: 150, red: 176}
+            grid_options: {columns: 6}
+          # The integration also exposes shutdown, reboot and fan/power buttons; they are
+          # deliberately not on this page. Pool-level "used" reads 100 %, so fullness is
+          # shown per volume.
+          - type: entities
+            state_color: true
+            entities:
+              - entity: sensor.ugreen_nas_server_status
+                name: Server
+              - entity: sensor.ugreen_nas_pool_1_status
+                name: Pool 1 (RAID1)
+              - entity: sensor.ugreen_nas_pool_2_status
+                name: Pool 2 (basic)
+              - entity: sensor.ugreen_nas_update_available
+                name: UGOS update available
+              - entity: sensor.nas_power_draw
+                name: Power draw (outlet)
+      - type: grid
+        cards:
+          - type: heading
+            heading: Home
+            icon: mdi:home-lightning-bolt-outline
+          - type: entities
+            state_color: true
+            entities:
+              - entity: sensor.home_energy_unexplained
+                name: Unexplained power
+              - entity: sensor.ha_low_battery_count
+                name: Low batteries
+              - entity: sensor.ha_unavailable_entities
+                name: Unavailable entities
+              - entity: sensor.updates_waiting
+                name: Updates waiting
+              - entity: sensor.ha_disk_used
+                name: Green disk used
+              - entity: sensor.backup_last_successful_automatic_backup
+                name: Last HA backup
+              - entity: sensor.minecraft_server_players_online
+                name: Minecraft players online
+              - entity: sensor.wildcard_cert_expiry
+                name: Certificate expires
+              # simple-entity shows the value only; a plain input_datetime row renders as an
+              # editable date/time picker with a clipped date.
+              - type: simple-entity
+                entity: input_datetime.restic_backup_last_success
+                name: Restic last success
+              - entity: automation.monitoring_healthchecks_dead_man_ping
+                name: Healthchecks dead-man ping
+                secondary_info: last-triggered
+
+  # ---------------------------------------------------------------- Network
+  # 2026-11-08: replaces the separate "UniFi Network" dashboard. Restart buttons, LED
+  # switches, the 33-client list and the firewall-rule toggles were dropped on purpose
+  # (the rule switches were mostly orphans after the firewall rework).
+  - title: Network
+    path: network
+    icon: mdi:lan
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: UniFi devices
+            icon: mdi:access-point-network
+          - type: markdown
+            content: |-
+              {% set devs = [('Gateway','cloud_gateway_max'),('Switch Family','familyrmsw'),('Switch Laundry','laundryrmsw'),('Switch Office','officermsw'),('AP Office','officeap'),('AP Kitchen','kitchenrmap'),('AP Kids','kidsrmap'),('AP Master','masterbdrmap'),('AP Family','familyrmap')] %}
+              | Device | Status | CPU | Mem | Up | FW |
+              |:--|:-:|--:|--:|--:|:-:|
+              {% for n,d in devs -%}
+              | {{ n }} | {{ '✅' if is_state('sensor.'~d~'_state','connected') else '❌ ' ~ states('sensor.'~d~'_state') }} | {{ (states('sensor.'~d~'_cpu_utilization')|float|round(0)|int ~ '%') if states('sensor.'~d~'_cpu_utilization')|is_number else '–' }} | {{ (states('sensor.'~d~'_memory_utilization')|float|round(0)|int ~ '%') if states('sensor.'~d~'_memory_utilization')|is_number else '–' }} | {{ relative_time(as_datetime(states('sensor.'~d~'_uptime'))) if has_value('sensor.'~d~'_uptime') else '–' }} | {{ '⬆️ update' if is_state('update.'~d~'_firmware','on') else 'ok' }} |
+              {% endfor %}
+      - type: grid
+        cards:
+          - type: heading
+            heading: Gateway
+            icon: mdi:router-network
+          - type: gauge
+            entity: sensor.cloud_gateway_max_cpu_utilization
+            name: CPU
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 70, red: 90}
+            grid_options: {columns: 6}
+          - type: gauge
+            entity: sensor.cloud_gateway_max_memory_utilization
+            name: Memory
+            min: 0
+            max: 100
+            severity: {green: 0, yellow: 75, red: 90}
+            grid_options: {columns: 6}
+          - type: heading
+            heading: Wi-Fi networks
+            icon: mdi:wifi
+            heading_style: subtitle
+          - type: glance
+            show_name: true
+            entities:
+              - entity: sensor.ts_wifi_clients
+                name: WiFi
+              - entity: sensor.ts_iot_clients
+                name: IoT
+              - entity: sensor.ts_media_clients
+                name: Media
+              - entity: sensor.guest_wifi_clients
+                name: Guest
+          - type: entities
+            state_color: true
+            entities:
+              - entity: switch.ts_wifi_enabled
+                name: WiFi on
+              - entity: switch.ts_iot_enabled
+                name: IoT on
+              - entity: switch.ts_media_enabled
+                name: Media on
+              - entity: switch.guest_wifi_enabled
+                name: Guest on
+
+  # ---------------------------------------------------------------- Trends
+  - title: Trends
+    path: trends
+    icon: mdi:chart-line
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: House, last 24 hours
+            icon: mdi:home-lightning-bolt-outline
+          - type: history-graph
+            hours_to_show: 24
+            entities:
+              - entity: sensor.home_energy_unexplained
+                name: Unexplained power
+          - type: history-graph
+            hours_to_show: 24
+            entities:
+              - entity: sensor.ac_running
+                name: AC
+              - entity: sensor.furnace_running
+                name: Furnace
+              - entity: sensor.dryer_running
+                name: Dryer
+      - type: grid
+        cards:
+          - type: heading
+            heading: NAS and host, last 24 hours
+            icon: mdi:server
+          - type: history-graph
+            hours_to_show: 24
+            entities:
+              - entity: sensor.ugreen_nas_cpu_temperature
+                name: NAS CPU
+              - entity: sensor.ugreen_nas_pool_1_disk_1_temperature
+                name: NAS disk 3
+              - entity: sensor.ugreen_nas_pool_1_disk_2_temperature
+                name: NAS disk 2
+              - entity: sensor.ugreen_nas_pool_2_disk_1_temperature
+                name: NAS disk 1
+          - type: history-graph
+            hours_to_show: 24
+            entities:
+              - entity: sensor.homelab_cpu_usage
+                name: Host CPU
+              - entity: sensor.homelab_memory_usage
+                name: Host memory
+      - type: grid
+        cards:
+          - type: heading
+            heading: Network, last 24 hours
+            icon: mdi:lan
+          - type: history-graph
+            title: UniFi CPU
+            hours_to_show: 24
+            entities:
+              - sensor.cloud_gateway_max_cpu_utilization
+              - sensor.familyrmsw_cpu_utilization
+              - sensor.laundryrmsw_cpu_utilization
+              - sensor.officermsw_cpu_utilization
+              - sensor.officeap_cpu_utilization
+              - sensor.kidsrmap_cpu_utilization
+              - sensor.familyrmap_cpu_utilization
+          - type: history-graph
+            title: UniFi memory
+            hours_to_show: 24
+            entities:
+              - sensor.cloud_gateway_max_memory_utilization
+              - sensor.familyrmsw_memory_utilization
+              - sensor.laundryrmsw_memory_utilization
+              - sensor.officermsw_memory_utilization
+              - sensor.officeap_memory_utilization
+              - sensor.kidsrmap_memory_utilization
+              - sensor.familyrmap_memory_utilization
+
+  # ---------------------------------------------------------------- Alerts
+  - title: Alerts
+    path: alerts
+    icon: mdi:bell-ring-outline
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Health
+            icon: mdi:shield-check
+          - type: markdown
+            content: |-
+              {% set rows = [
+                ('alert.internet_down', 'Internet up', true),
+                ('alert.adguard_down', 'AdGuard up', true),
+                ('alert.nas_down', 'NAS up', true),
+                ('alert.nas_storage', 'NAS storage healthy', true),
+                ('alert.nas_plug_off', 'NAS plug on', true),
+              ('alert.radon_fan', 'Radon fan running', true),
+                ('alert.aquarium_pump', 'Aquarium pump running', true),
+                ('alert.nas_volume_full', 'NAS volumes under 85 %', false),
+                ('alert.nas_hot', 'NAS temperature normal', false),
+                ('alert.container_down', 'Containers all running', false),
+                ('alert.unifi_offline', 'UniFi devices connected', false),
+                ('alert.minecraft_down', 'Minecraft server up', false),
+                ('alert.tls_expiring', 'TLS certificate valid', false),
+                ('alert.restic_stale', 'Restic backup current', false),
+                ('alert.ha_backup_stale', 'HA backup current', false),
+                ('alert.host_disk', 'Host disk under 90 %', false),
+                ('alert.host_memory', 'Host memory under 90 %', false),
+                ('alert.timemachine_disk', 'Time Machine disk under 85 %', false),
+              ('alert.ha_disk', 'HA disk under 85 %', false),
+                ('alert.key_device', 'Key devices online', false),
+                ('alert.ac_running', 'AC run under 90 min', false),
+                ('alert.furnace_running', 'Furnace run under 90 min', false),
+                ('alert.dryer_running', 'Dryer run under 90 min', false),
+                ('alert.unexplained_power', 'Unexplained power under 1200 W', false),
+                ('alert.unavailable_spike', 'Unavailable entities normal', false),
+                ('alert.low_battery', 'No low batteries', false)] %}
+              | | Check | Status |
+              |:-:|:--|:--|
+              {% for e, n, crit in rows -%}
+              {%- set s = states(e) -%}
+              | {{ '✅' if s == 'idle' else ('❔' if s in ['unavailable', 'unknown'] else ('🛑' if crit else '⚠️')) }} | {{ n }} | {{ {'idle': 'OK', 'on': 'needs attention', 'off': 'acknowledged'}.get(s, s) }} |
+              {% endfor %}
+      - type: grid
+        cards:
+          - type: heading
+            heading: Details (tap a row for history)
+            icon: mdi:alert-circle-outline
+          - type: entities
+            state_color: true
+            entities:
+              - entity: binary_sensor.internet_down
+                name: Internet up
+              - entity: binary_sensor.adguard_down
+                name: AdGuard up
+              - entity: binary_sensor.nas_down
+                name: NAS up
+              - entity: binary_sensor.nas_storage_unhealthy
+                name: NAS storage healthy
+              - entity: binary_sensor.nas_plug_off
+                name: NAS plug on
+              - entity: binary_sensor.nas_volume_over_85_percent
+                name: NAS volumes under 85 %
+              - entity: binary_sensor.nas_running_hot
+                name: NAS temperature normal
+              - entity: binary_sensor.minecraft_server_down
+                name: Minecraft server up
+              - entity: binary_sensor.tls_certificate_expiring
+                name: TLS certificate valid
+              - entity: binary_sensor.restic_backup_stale
+                name: Restic backup current
+              - entity: binary_sensor.host_disk_over_90_percent
+                name: Host disk under 90 %
+              - entity: binary_sensor.host_memory_over_90_percent
+                name: Host memory under 90 %
+              - entity: binary_sensor.ac_running_90_min
+                name: AC run under 90 min
+              - entity: binary_sensor.furnace_running_90_min
+                name: Furnace run under 90 min
+              - entity: binary_sensor.dryer_running_90_min
+                name: Dryer run under 90 min
+              - entity: binary_sensor.unexplained_power_over_1200_w
+                name: Unexplained power under 1200 W
+              - entity: binary_sensor.unavailable_entity_spike
+                name: Unavailable entities normal
+              - entity: binary_sensor.low_battery_device
+                name: No low batteries
+              - entity: binary_sensor.stack_container_down
+                name: Containers all running
+              - entity: binary_sensor.ha_backup_stale
+                name: HA backup current
+              - entity: binary_sensor.radon_fan_stopped
+                name: Radon fan running
+              - entity: binary_sensor.aquarium_pump_stopped
+                name: Aquarium pump running
+              - entity: binary_sensor.unifi_device_offline
+                name: UniFi devices connected
+              - entity: binary_sensor.key_device_unavailable
+                name: Key devices online
+              - entity: binary_sensor.time_machine_disk_over_85_percent
+                name: Time Machine disk under 85 %
+              - entity: binary_sensor.ha_disk_over_85_percent
+                name: HA disk under 85 %
+      - type: grid
+        cards:
+          - type: heading
+            heading: Alerts (turn one off to silence it)
+            icon: mdi:bell-ring-outline
+          - type: entities
+            entities:
+              - alert.internet_down
+              - alert.adguard_down
+              - alert.nas_down
+              - alert.nas_storage
+              - alert.nas_plug_off
+              - alert.nas_volume_full
+              - alert.nas_hot
+              - alert.minecraft_down
+              - alert.tls_expiring
+              - alert.restic_stale
+              - alert.host_disk
+              - alert.host_memory
+              - alert.ac_running
+              - alert.furnace_running
+              - alert.dryer_running
+              - alert.unexplained_power
+              - alert.unavailable_spike
+              - alert.low_battery
+              - alert.container_down
+              - alert.ha_backup_stale
+              - alert.radon_fan
+              - alert.aquarium_pump
+              - alert.unifi_offline
+              - alert.key_device
+              - alert.timemachine_disk
+              - alert.ha_disk

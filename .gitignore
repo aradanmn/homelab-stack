@@ -1,0 +1,28 @@
+# Real data, caches, and secrets -- never committed. Config with no secrets
+# in it IS tracked, listed
+# as exceptions below -- see docs/services.md for the reasoning (one source of
+# truth instead of a parallel real/example copy going stale).
+appdata/*
+certs/*
+!certs/README.md
+logs/
+.env
+
+# Rollback copies kept beside live config on LXC 101 (manual, dated)
+docker-compose.yml.pre-*
+*.bak-*
+
+# Live state written by the digest/HA-device timers on LXC 105 (rolling window, never config)
+scripts/state/digest-history.jsonl
+scripts/state/known_ha_devices.json
+
+# Root-owned HA API backup archives written on LXC 101 (data, not config)
+backups/
+
+# Python bytecode: regenerated on every run, never committed (10 .pyc files
+# slipped in with 5c4de09).
+__pycache__/
+*.pyc
+!appdata/glances
+appdata/glances/*
+!appdata/glances/glances.conf

@@ -1,0 +1,144 @@
+- id: leaving_home_left_something_on_check
+  alias: Leaving Home - Check for Anything Left On
+  description: When Scott leaves home, asks Claude (via AI Task) to judge whether
+    anything currently on is worth flagging, rather than a rigid "if light is on,
+    notify" rule that would nag on every ordinary exit.
+  triggers:
+  - trigger: state
+    entity_id: person.scott_dean
+    to: not_home
+  conditions: []
+  actions:
+  - action: ai_task.generate_data
+    data:
+      task_name: leaving_home_check
+      entity_id: ai_task.utility_room_claude_ai_task
+      instructions: "Scott just left home. Current state: - Thermostat: {{ states('climate.thermostat')
+        }}, target\n  {{ state_attr('climate.thermostat', 'temperature') }}°F, action\n
+        \ {{ state_attr('climate.thermostat', 'hvac_action') }}\n- Smart Away Mode
+        (Lutron scene): {{ states('switch.smart_bridge_2_unassigned_smart_away') }}
+        - Lights/switches currently on:\n  {% set entities = [\n      'light.dining_room_dining_room_chandelier',\n
+        \     'light.family_room_family_room_floor_lamp',\n      'light.living_room_living_room_ceiling_fan_light',\n
+        \     'switch.exercise_room_exercise_room_main_lights',\n      'switch.kids_room_kids_room_main_lights',\n
+        \     'switch.office_office_main_lights',\n      'switch.utility_room_utility_room_main_lights',\n
+        \     'switch.downstairs_hallway_downstairs_hallway_sconces',\n      'switch.upstairs_hallway_upstairs_hallway_main_lights',\n
+        \     'switch.master_bedroom_master_bedroom_ceiling_fan_light',\n      'switch.front_exterior_front_exterior_driveway_light',\n
+        \     'switch.front_exterior_front_exterior_string_lights',\n      'switch.back_exterior_back_exterior_deck_lights',\n
+        \   ] %}\n  {% set on_names = namespace(items=[]) %}\n  {% for e in entities
+        %}\n    {% if is_state(e, 'on') %}\n      {% set on_names.items = on_names.items
+        + [state_attr(e, 'friendly_name')] %}\n    {% endif %}\n  {% endfor %}\n  {{
+        on_names.items | join(', ') if on_names.items else 'none' }}\n- Media playing:\n
+        \ {{ states.media_player | selectattr('state', 'eq', 'playing') | map(attribute='name')
+        | list | join(', ') or 'nothing' }}\n\nJudge whether this is worth a \"hey,
+        you might have left something on\" push notification. Don't flag if Smart
+        Away Mode is already on (that's the intentional away scene). Don't flag the
+        thermostat alone for a normal heat/cool cycle. DO flag lights/switches/media
+        left on with no clear reason, especially several at once. Be conservative
+        - only flag genuinely notable cases, not routine exits with a couple of lights
+        on."
+      structure:
+        should_notify:
+          selector:
+            boolean: {}
+        message:
+          selector:
+            text: {}
+    response_variable: judgment
+  - if:
+    - condition: template
+      value_template: '{{ judgment.data.should_notify }}'
+    then:
+    - action: notify.phones
+      data:
+        title: Left home?
+        message: '{{ judgment.data.message }}'
+  mode: single
+- id: front_door_person_visitor_notify
+  alias: Front Door - Notify on Person or Visitor
+  description: 'Notifies Scott''s phone when the doorbell detects a person at the
+    door or the button is pressed -- excludes plain motion and vehicles. Smart notifications
+    (2026-11-01): a person detection only pushes if the person sensor has been quiet
+    for 90 s AND nothing was pushed in the last 90 s, so one visit = one push and
+    people leaving do not re-alert; the doorbell button always pushes, but if anything
+    was pushed in the last 60 s it updates the same banner silently (tag front_door)
+    instead of buzzing twice. Native Reolink push is off to avoid duplicates. Previous
+    versions backed up in ~/doorbell-collect/backup/ on LXC 105.'
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.front_door_visitor
+    to: 'on'
+    id: visitor
+  - trigger: state
+    entity_id: binary_sensor.front_door_person
+    to: 'on'
+    id: person
+  conditions:
+  - condition: or
+    conditions:
+    - condition: trigger
+      id: visitor
+    - condition: template
+      value_template: '{{ quiet_for >= 90 and since_last >= 90 }}'
+  actions:
+  - action: notify.phones
+    data:
+      title: '{{ ''Doorbell'' if trigger.id == ''visitor'' else ''Front Door'' }}'
+      message: '{{ ''Someone rang the doorbell.'' if trigger.id == ''visitor'' else
+        ''Person detected at the front door.'' }}'
+      data:
+        tag: front_door
+        group: front_door
+        image: /api/camera_proxy/camera.front_door_fluent
+        push:
+          interruption-level: '{{ ''passive'' if trigger.id == ''visitor'' and since_last
+            < 60 else ''active'' }}'
+  mode: queued
+  max: 5
+  variables:
+    since_last: '{{ 99999 if this.attributes.last_triggered is none else (now() -
+      this.attributes.last_triggered).total_seconds() }}'
+    quiet_for: '{{ 99999 if trigger.from_state is none or trigger.from_state.state
+      in [''unavailable'',''unknown''] else (now() - trigger.from_state.last_changed).total_seconds()
+      }}'
+- id: '1792886711140'
+  alias: Turn on string lights at night
+  description: ''
+  triggers:
+  - trigger: sun.dusk
+    options:
+      offset:
+        days: 0
+        hours: 0
+        minutes: 0
+        seconds: 0
+      offset_type: before
+      type: civil
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.front_exterior_front_exterior_string_lights
+    data: {}
+  mode: single
+- id: '1792959850419'
+  alias: Turn off string lights
+  description: ''
+  triggers:
+  - trigger: sun.dawn
+    options:
+      offset:
+        days: 0
+        hours: 0
+        minutes: 0
+        seconds: 0
+      offset_type: before
+      type: civil
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      device_id: e816dc9efaf85009d9307d87920082f9
+    data: {}
+  mode: single

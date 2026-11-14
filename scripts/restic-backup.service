@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly restic backup to the NAS share
+Requires=homelab-stack-secrets.service
+After=homelab-stack-secrets.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/run/homelab-stack/restic.env
+ExecStart=/home/claude/workspace/homelab-stack/scripts/restic_backup.sh

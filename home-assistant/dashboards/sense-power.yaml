@@ -1,0 +1,539 @@
+# Sense Power dashboard (url /sense-power). UI-stored in /config/.storage/lovelace.sense_power.
+# Export; paste into Edit dashboard > ⋮ > Raw configuration editor to restore.
+# See docs/home-assistant.md.
+title: Sense Power
+views:
+- title: Power
+  path: sense-power
+  icon: mdi:flash
+  type: sections
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Whole-Home Power
+      icon: mdi:flash
+    - type: gauge
+      entity: sensor.sense_1000019509_energy
+      name: Current Home Power
+      unit: W
+      min: 0
+      max: 5000
+      severity:
+        green: 0
+        yellow: 2000
+        red: 3500
+    - type: energy-usage-graph
+      collection_key: energy_dashboard
+    column_span: 2
+  - type: grid
+    cards:
+    - type: heading
+      heading: Today's cost
+      icon: mdi:cash
+    - type: tile
+      entity: sensor.always_on_daily_cost
+      name: Always On
+      icon: mdi:cash
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.other_daily_cost
+      name: Other
+      icon: mdi:cash
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.sense_identified_daily_cost
+      name: Sense-identified
+      icon: mdi:cash
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.whole_home_daily_cost
+      name: Whole-Home Total
+      icon: mdi:cash
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Daily Energy by Device
+      icon: mdi:chart-bar
+    - type: statistics-graph
+      title: Family Room, Kitchen & Exercise
+      chart_type: bar
+      period: day
+      stat_types:
+      - change
+      days_to_show: 7
+      entities:
+      - entity: sensor.projector_today_s_consumption
+        name: Projector
+      - entity: sensor.apple_tv_today_s_consumption
+        name: Apple TV
+      - entity: sensor.sony_bravia_tv_today_s_consumption
+        name: Sony Bravia TV
+      - entity: sensor.keurig_coffee_maker_today_s_consumption
+        name: Keurig
+      - entity: sensor.tp_link_power_strip_2d1e_plug_1_today_s_consumption
+        name: Marantz
+      - entity: sensor.tp_link_power_strip_2d1e_plug_2_today_s_consumption
+        name: Framework PC
+      - entity: sensor.tp_link_power_strip_2d1e_plug_3_today_s_consumption
+        name: Nintendo Switch 2
+      - entity: sensor.tp_link_power_strip_2d1e_plug_4_today_s_consumption
+        name: Apple TV 4K
+      - entity: sensor.tp_link_power_strip_2d1e_plug_5_today_s_consumption
+        name: Steam Deck
+      - entity: sensor.tp_link_power_strip_2d1e_plug_6_today_s_consumption
+        name: Subwoofer
+      - entity: sensor.exercise_room_appletv_today_s_consumption
+        name: Exercise Room Apple TV
+      - entity: sensor.exercise_room_viziotv_today_s_consumption
+        name: Exercise Room Vizio TV
+    - type: statistics-graph
+      title: Office & Utility Room
+      chart_type: bar
+      period: day
+      stat_types:
+      - change
+      days_to_show: 7
+      entities:
+      - entity: sensor.unnamed_p316m_caldigit_dock_today_s_consumption
+        name: CalDigit Dock
+      - entity: sensor.unnamed_p316m_desk_outlet_today_s_consumption
+        name: Desk Outlet
+      - entity: sensor.unnamed_p316m_tapo_p316m_5_today_s_consumption_2
+        name: HP DeskJet printer
+      - entity: sensor.unnamed_p316m_tapo_p316m_3_today_s_consumption_3
+        name: NAS (mimir)
+      - entity: sensor.unnamed_p316m_tapo_p316m_3_today_s_consumption_2
+        name: Mac Mini host
+      - entity: sensor.unnamed_p316m_tapo_p316m_4_today_s_consumption
+        name: WD My Book
+      - entity: sensor.unnamed_p316m_tapo_p316m_2_today_s_consumption_2
+        name: UniFi Gateway
+      - entity: sensor.unnamed_p316m_tapo_p316m_5_today_s_consumption
+        name: UniFi Switch
+      - entity: sensor.unnamed_p316m_tapo_p316m_6_today_s_consumption
+        name: Modem
+      - entity: sensor.unnamed_p316m_tapo_p316m_1_today_s_consumption
+        name: Lutron Smart Hub
+      - entity: sensor.mini_fridge_today_s_consumption
+        name: Mini Fridge
+      - entity: sensor.venmar_today_s_consumption
+        name: Venmar
+    - type: statistics-graph
+      title: Aquarium, Radon fan & Fridge
+      chart_type: bar
+      period: day
+      stat_types:
+      - change
+      days_to_show: 7
+      entities:
+      - entity: sensor.unnamed_p316m_aquarium_heater_today_s_consumption
+        name: Aquarium Heater
+      - entity: sensor.unnamed_p316m_aquarium_light_today_s_consumption
+        name: Aquarium Light
+      - entity: sensor.unnamed_p316m_aquarium_pump_today_s_consumption
+        name: Aquarium Pump
+      - entity: sensor.unnamed_p316m_co2_generator_today_s_consumption
+        name: CO2 Generator
+      - entity: sensor.bedside_lamp_today_s_consumption
+        name: Radon Fan
+      - entity: sensor.fridge_daily_energy
+        name: Fridge (Sense)
+  - type: grid
+    cards:
+    - type: heading
+      heading: Whole-Home (Sense Categories)
+      icon: mdi:chart-donut
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.always_on_power_2
+      - sensor.other_power_2
+      - sensor.home_energy_identified_sense
+      title: Whole home = always on + other + Sense-identified
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.home_energy_explained_tapo_kasa
+      - sensor.home_energy_identified_off_plug_sense
+      - sensor.home_energy_unexplained_filtered
+      title: Whole home = plugs + Sense-identified (not on a plug) + unexplained (filtered, 3 min median)
+      min_y_axis: 0
+    column_span: 2
+  max_columns: 3
+  badges:
+  - type: entity
+    entity: sensor.sense_1000019509_energy
+    name: Now
+  - type: entity
+    entity: sensor.whole_home_daily_cost
+    name: Today
+- title: Devices
+  path: sense-power-devices
+  icon: mdi:power-plug-outline
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Kitchen
+      icon: mdi:stove
+    - type: tile
+      entity: sensor.keurig_coffee_maker_daily_cost
+      name: Keurig
+      icon: mdi:coffee-maker
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.fridge_daily_cost
+      name: Fridge
+      icon: mdi:fridge-outline
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Living Room
+      icon: mdi:sofa
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.apple_tv_daily_cost
+      name: Apple TV
+      icon: mdi:television
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.sony_bravia_tv_daily_cost
+      name: Sony Bravia TV
+      icon: mdi:television
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Office
+      icon: mdi:desk
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.computer_desk_power_strip_caldigit_dock_daily_cost
+      name: CalDigit Dock
+      icon: mdi:cash
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.computer_desk_power_strip_desk_outlet_daily_cost
+      name: Desk Outlet
+      icon: mdi:cash
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.hp_deskjet_printer_daily_cost
+      name: HP DeskJet printer
+      icon: mdi:cash
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.nas_daily_cost
+      name: NAS (mimir)
+      icon: mdi:nas
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Family Room – Entertainment
+      icon: mdi:television
+    - type: tile
+      entity: sensor.marantz_daily_cost
+      name: Marantz
+      icon: mdi:cash
+      color: '#D98A87'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.frameworkpc_daily_cost
+      name: Framework PC
+      icon: mdi:cash
+      color: '#D98A87'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.nintendoswitch2_daily_cost
+      name: Nintendo Switch 2
+      icon: mdi:router-network
+      color: '#D98A87'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.appletv4k_daily_cost
+      name: Apple TV 4K
+      icon: mdi:television
+      color: '#D98A87'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.steamdeck_daily_cost
+      name: Steam Deck
+      icon: mdi:cash
+      color: '#D98A87'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.subwoofer_daily_cost
+      name: Subwoofer
+      icon: mdi:cash
+      color: '#D98A87'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.projector_daily_cost
+      name: Projector
+      icon: mdi:television
+      color: '#D98A87'
+      grid_options:
+        columns: 12
+    - type: heading
+      heading: Family Room – Aquarium
+      icon: mdi:fishbowl
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.unnamed_p316m_co2_generator_daily_cost
+      name: CO2 Generator
+      icon: mdi:cash
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unnamed_p316m_aquarium_light_daily_cost
+      name: Aquarium Light
+      icon: mdi:fishbowl
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unnamed_p316m_aquarium_pump_daily_cost
+      name: Aquarium Pump
+      icon: mdi:fishbowl
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unnamed_p316m_aquarium_heater_daily_cost
+      name: Aquarium Heater
+      icon: mdi:fishbowl
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Utility Room – Infrastructure
+      icon: mdi:router-network
+    - type: tile
+      entity: sensor.modem_daily_cost
+      name: Modem
+      icon: mdi:router-network
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unifi_switch_daily_cost
+      name: UniFi Switch
+      icon: mdi:router-network
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.wd_my_book_daily_cost
+      name: Mac Mini host
+      icon: mdi:server
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.mac_mini_proxmox_daily_cost
+      name: WD My Book
+      icon: mdi:nas
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unifi_gateway_daily_cost
+      name: UniFi Gateway
+      icon: mdi:router-network
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.lutron_smart_hub_daily_cost
+      name: Lutron Smart Hub
+      icon: mdi:lightbulb-group
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Utility Room – Appliances
+      icon: mdi:washing-machine
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.mini_fridge_daily_cost
+      name: Mini Fridge
+      icon: mdi:fridge-outline
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.venmar_daily_cost
+      name: Venmar
+      icon: mdi:fan
+      color: '#F0B860'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Exercise Room
+      icon: mdi:dumbbell
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.exercise_room_appletv_daily_cost
+      name: Apple TV
+      icon: mdi:television
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.exercise_room_viziotv_daily_cost
+      name: Vizio TV
+      icon: mdi:television
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Garage
+      icon: mdi:garage
+      heading_style: subtitle
+    - type: tile
+      entity: sensor.bedside_lamp_daily_cost
+      name: Radon Fan
+      icon: mdi:cash
+      color: '#8FB996'
+      grid_options:
+        columns: 12
+- title: Live
+  path: sense-power-live
+  icon: mdi:chart-line
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Kitchen
+      icon: mdi:stove
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.keurig_coffee_maker_current_consumption
+      - sensor.fridge_power
+    - type: heading
+      heading: Living Room
+      icon: mdi:sofa
+      heading_style: subtitle
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.apple_tv_current_consumption
+      - sensor.sony_bravia_tv_current_consumption
+    - type: heading
+      heading: Office
+      icon: mdi:desk
+      heading_style: subtitle
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.unnamed_p316m_caldigit_dock_current_consumption
+      - sensor.unnamed_p316m_desk_outlet_current_consumption
+      - sensor.unnamed_p316m_tapo_p316m_5_current_consumption_2
+      - sensor.nas_power_draw
+  - type: grid
+    cards:
+    - type: heading
+      heading: Family Room – Entertainment
+      icon: mdi:television
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.tp_link_power_strip_2d1e_plug_1_current_consumption
+      - sensor.tp_link_power_strip_2d1e_plug_2_current_consumption
+      - sensor.tp_link_power_strip_2d1e_plug_3_current_consumption
+      - sensor.tp_link_power_strip_2d1e_plug_4_current_consumption
+      - sensor.tp_link_power_strip_2d1e_plug_5_current_consumption
+      - sensor.tp_link_power_strip_2d1e_plug_6_current_consumption
+      - sensor.projector_current_consumption
+    - type: heading
+      heading: Family Room – Aquarium
+      icon: mdi:fishbowl
+      heading_style: subtitle
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.unnamed_p316m_co2_generator_current_consumption
+      - sensor.unnamed_p316m_aquarium_light_current_consumption
+      - sensor.unnamed_p316m_aquarium_pump_current_consumption
+      - sensor.unnamed_p316m_aquarium_heater_current_consumption
+  - type: grid
+    cards:
+    - type: heading
+      heading: Utility Room – Infrastructure
+      icon: mdi:router-network
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.unnamed_p316m_tapo_p316m_1_current_consumption
+      - sensor.unnamed_p316m_tapo_p316m_2_current_consumption_2
+      - sensor.unnamed_p316m_tapo_p316m_3_current_consumption_2
+      - sensor.unnamed_p316m_tapo_p316m_4_current_consumption
+      - sensor.unnamed_p316m_tapo_p316m_5_current_consumption
+      - sensor.unnamed_p316m_tapo_p316m_6_current_consumption
+    - type: heading
+      heading: Utility Room – Appliances
+      icon: mdi:washing-machine
+      heading_style: subtitle
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.mini_fridge_current_consumption
+      - sensor.venmar_current_consumption
+    - type: heading
+      heading: Exercise Room
+      icon: mdi:dumbbell
+      heading_style: subtitle
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - sensor.exercise_room_appletv_current_consumption
+      - sensor.exercise_room_viziotv_current_consumption
+    - type: heading
+      heading: Garage
+      icon: mdi:garage
+      heading_style: subtitle
+    - type: history-graph
+      hours_to_show: 24
+      entities:
+      - entity: sensor.bedside_lamp_current_consumption
+        name: Radon Fan Power
+      min_y_axis: 0
+      max_y_axis: 80

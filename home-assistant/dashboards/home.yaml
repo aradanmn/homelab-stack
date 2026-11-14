@@ -1,0 +1,841 @@
+# Home dashboard (HA's default dashboard, listed as "Overview", url /lovelace).
+# UI-stored: HA keeps it in /config/.storage/lovelace.lovelace. This file is an export;
+# paste it into Edit dashboard > ⋮ > Raw configuration editor to restore. See docs/home-assistant.md.
+title: Home
+views:
+- title: Home
+  path: home
+  icon: mdi:home-heart
+  type: sections
+  max_columns: 3
+  badges:
+  - type: entity
+    entity: person.scott_dean
+  - type: entity
+    entity: climate.thermostat
+  - type: entity
+    entity: weather.forecast_home
+  sections:
+  - type: grid
+    column_span: 3
+    cards:
+    - type: heading
+      heading: AI Home Summary
+      icon: mdi:robot-outline
+    - type: markdown
+      content: '{{ states(''input_text.ai_home_summary'') if states(''input_text.ai_home_summary'') not in [''unknown'',''unavailable'',''''] else ''Tap Refresh to
+        generate a summary.'' }}'
+      grid_options:
+        columns: 24
+    - type: tile
+      entity: script.ai_home_summary_refresh
+      name: Refresh
+      grid_options:
+        columns: 12
+      icon: mdi:refresh
+  - type: grid
+    column_span: 3
+    cards:
+    - type: heading
+      heading: On right now
+      icon: mdi:lightbulb-on-outline
+    - type: tile
+      entity: fan.living_room_living_room_ceiling_fan
+      name: Living Room Fan
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: fan.living_room_living_room_ceiling_fan
+        state: 'on'
+    - type: tile
+      entity: light.living_room_living_room_ceiling_fan_light
+      name: Living Room Light
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: light.living_room_living_room_ceiling_fan_light
+        state: 'on'
+    - type: tile
+      entity: light.dining_room_dining_room_chandelier
+      name: Dining Chandelier
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: light.dining_room_dining_room_chandelier
+        state: 'on'
+    - type: tile
+      entity: fan.master_bedroom_master_bedroom_ceiling_fan
+      name: Master Fan
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: fan.master_bedroom_master_bedroom_ceiling_fan
+        state: 'on'
+    - type: tile
+      entity: switch.master_bedroom_master_bedroom_ceiling_fan_light
+      name: Master Light
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.master_bedroom_master_bedroom_ceiling_fan_light
+        state: 'on'
+    - type: tile
+      entity: light.family_room_family_room_floor_lamp
+      name: Family Floor Lamp
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: light.family_room_family_room_floor_lamp
+        state: 'on'
+    - type: tile
+      entity: switch.exercise_room_exercise_room_main_lights
+      name: Exercise Room
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.exercise_room_exercise_room_main_lights
+        state: 'on'
+    - type: tile
+      entity: switch.kids_room_kids_room_main_lights
+      name: Playroom
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.kids_room_kids_room_main_lights
+        state: 'on'
+    - type: tile
+      entity: switch.office_office_main_lights
+      name: Office
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.office_office_main_lights
+        state: 'on'
+    - type: tile
+      entity: switch.upstairs_hallway_upstairs_hallway_main_lights
+      name: Upstairs Hallway
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.upstairs_hallway_upstairs_hallway_main_lights
+        state: 'on'
+    - type: tile
+      entity: switch.downstairs_hallway_downstairs_hallway_sconces
+      name: Downstairs Hallway
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.downstairs_hallway_downstairs_hallway_sconces
+        state: 'on'
+    - type: tile
+      entity: switch.utility_room_utility_room_main_lights
+      name: Utility Room
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.utility_room_utility_room_main_lights
+        state: 'on'
+    - type: tile
+      entity: switch.front_exterior_front_exterior_driveway_light
+      name: Driveway
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.front_exterior_front_exterior_driveway_light
+        state: 'on'
+    - type: tile
+      entity: switch.front_exterior_front_exterior_string_lights
+      name: String Lights
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.front_exterior_front_exterior_string_lights
+        state: 'on'
+    - type: tile
+      entity: switch.back_exterior_back_exterior_deck_lights
+      name: Deck Lights
+      color: amber
+      grid_options:
+        columns: 6
+      visibility:
+      - condition: state
+        entity: switch.back_exterior_back_exterior_deck_lights
+        state: 'on'
+    - type: markdown
+      content: All lights and fans are off.
+      visibility:
+      - condition: state
+        entity: fan.living_room_living_room_ceiling_fan
+        state_not: 'on'
+      - condition: state
+        entity: light.living_room_living_room_ceiling_fan_light
+        state_not: 'on'
+      - condition: state
+        entity: light.dining_room_dining_room_chandelier
+        state_not: 'on'
+      - condition: state
+        entity: fan.master_bedroom_master_bedroom_ceiling_fan
+        state_not: 'on'
+      - condition: state
+        entity: switch.master_bedroom_master_bedroom_ceiling_fan_light
+        state_not: 'on'
+      - condition: state
+        entity: light.family_room_family_room_floor_lamp
+        state_not: 'on'
+      - condition: state
+        entity: switch.exercise_room_exercise_room_main_lights
+        state_not: 'on'
+      - condition: state
+        entity: switch.kids_room_kids_room_main_lights
+        state_not: 'on'
+      - condition: state
+        entity: switch.office_office_main_lights
+        state_not: 'on'
+      - condition: state
+        entity: switch.upstairs_hallway_upstairs_hallway_main_lights
+        state_not: 'on'
+      - condition: state
+        entity: switch.downstairs_hallway_downstairs_hallway_sconces
+        state_not: 'on'
+      - condition: state
+        entity: switch.utility_room_utility_room_main_lights
+        state_not: 'on'
+      - condition: state
+        entity: switch.front_exterior_front_exterior_driveway_light
+        state_not: 'on'
+      - condition: state
+        entity: switch.front_exterior_front_exterior_string_lights
+        state_not: 'on'
+      - condition: state
+        entity: switch.back_exterior_back_exterior_deck_lights
+        state_not: 'on'
+  - type: grid
+    cards:
+    - type: heading
+      heading: Climate
+      icon: mdi:thermostat
+    - type: tile
+      entity: climate.thermostat
+      name: Thermostat
+      grid_options:
+        columns: 12
+    - type: tile
+      entity: sensor.living_room_temperature
+      name: Living Room
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.family_room_temperature
+      name: Family Room
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.master_bedroom_temperature
+      name: Master Bedroom
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.kids_room_temperature
+      name: Playroom
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Who's Home
+      icon: mdi:motion-sensor
+    - type: tile
+      entity: binary_sensor.living_room_occupancy
+      name: Living Room
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: binary_sensor.family_room_occupancy
+      name: Family Room
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: binary_sensor.master_bedroom_occupancy
+      name: Master Bedroom
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: binary_sensor.kids_room_occupancy
+      name: Playroom
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Quick Controls
+      icon: mdi:tune
+    - type: tile
+      entity: switch.smart_bridge_2_unassigned_smart_away
+      name: Smart Away Mode
+      grid_options:
+        columns: 12
+      icon: mdi:home-export-outline
+      color: '#F0B860'
+- title: Upstairs
+  path: home-upstairs
+  icon: mdi:stairs-up
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Living Room
+      icon: mdi:sofa
+    - type: tile
+      entity: fan.living_room_living_room_ceiling_fan
+      name: Ceiling Fan
+      features:
+      - type: fan-speed
+      color: '#7FD4C4'
+    - type: tile
+      entity: light.living_room_living_room_ceiling_fan_light
+      name: Ceiling Fan Light
+      features:
+      - type: light-brightness
+      color: '#7FD4C4'
+    - type: tile
+      entity: media_player.living_room_living_room
+      name: Apple TV
+      grid_options:
+        columns: 12
+      color: '#7FD4C4'
+    - type: tile
+      entity: binary_sensor.living_room_occupancy
+      name: Occupancy
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.living_room_temperature
+      name: Temperature
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.apple_tv
+      name: Apple TV power
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.sony_bravia_tv
+      name: Sony Bravia TV
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Master Bedroom
+      icon: mdi:bed-king-outline
+    - type: tile
+      entity: fan.master_bedroom_master_bedroom_ceiling_fan
+      name: Ceiling Fan
+      features:
+      - type: fan-speed
+      color: '#B79FD1'
+    - type: tile
+      entity: switch.master_bedroom_master_bedroom_ceiling_fan_light
+      name: Ceiling Fan Light
+      icon: mdi:ceiling-light
+      color: '#B79FD1'
+    - type: tile
+      entity: binary_sensor.master_bedroom_occupancy
+      name: Occupancy
+      color: '#B79FD1'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.master_bedroom_temperature
+      name: Temperature
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Dining Room
+      icon: mdi:silverware-fork-knife
+    - type: tile
+      entity: light.dining_room_dining_room_chandelier
+      name: Chandelier
+      grid_options:
+        columns: 12
+      features:
+      - type: light-brightness
+      color: '#7FD4C4'
+    - type: heading
+      heading: Office
+      icon: mdi:desk
+      heading_style: subtitle
+    - type: tile
+      entity: switch.office_office_main_lights
+      name: Main Lights
+      grid_options:
+        columns: 12
+      color: '#7C93A0'
+    - type: tile
+      entity: switch.unnamed_p316m_caldigit_dock
+      name: CalDigit Dock
+      icon: mdi:power-socket-us
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.unnamed_p316m_desk_outlet
+      name: Desk Outlet
+      icon: mdi:power-socket-us
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.unnamed_p316m_tapo_p316m_5_2
+      name: HP DeskJet printer
+      icon: mdi:power-socket-us
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.nas_power_draw
+      name: NAS power
+      icon: mdi:nas
+      color: '#7C93A0'
+      tap_action:
+        action: more-info
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Kitchen
+      icon: mdi:stove
+      heading_style: subtitle
+    - type: tile
+      entity: switch.keurig_coffee_maker
+      name: Keurig Coffee Maker
+      icon: mdi:power-socket-us
+      color: '#F0B860'
+      grid_options:
+        columns: 12
+    - type: heading
+      heading: Upstairs Hallway
+      icon: mdi:stairs-up
+      heading_style: subtitle
+    - type: tile
+      entity: switch.upstairs_hallway_upstairs_hallway_main_lights
+      name: Main Lights
+      color: '#A9998A'
+    - type: tile
+      entity: climate.thermostat
+      name: Thermostat
+      color: '#A9998A'
+- title: Downstairs
+  path: home-downstairs
+  icon: mdi:stairs-down
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Family Room
+      icon: mdi:sofa-outline
+    - type: tile
+      entity: light.family_room_family_room_floor_lamp
+      name: Floor Lamp
+      features:
+      - type: light-brightness
+      color: '#7FD4C4'
+    - type: tile
+      entity: media_player.home_theater
+      name: Home Theater
+      color: '#7FD4C4'
+    - type: tile
+      entity: media_player.family_room_family_room
+      name: Apple TV
+      grid_options:
+        columns: 12
+      color: '#7FD4C4'
+    - type: tile
+      entity: binary_sensor.family_room_occupancy
+      name: Occupancy
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.family_room_temperature
+      name: Temperature
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Entertainment strip
+      icon: mdi:television
+      heading_style: subtitle
+    - type: tile
+      entity: switch.tp_link_power_strip_2d1e_plug_1
+      name: Marantz
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.tp_link_power_strip_2d1e_plug_2
+      name: Framework PC
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: This cuts power to a computer. Shut it down first if it is running. Toggle it?
+    - type: tile
+      entity: switch.tp_link_power_strip_2d1e_plug_3
+      name: Nintendo Switch 2
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.tp_link_power_strip_2d1e_plug_4
+      name: Apple TV 4K
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.tp_link_power_strip_2d1e_plug_5
+      name: Steam Deck
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.tp_link_power_strip_2d1e_plug_6
+      name: Subwoofer
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.projector
+      name: Projector
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 12
+    - type: heading
+      heading: Aquarium
+      icon: mdi:fishbowl
+      heading_style: subtitle
+    - type: tile
+      entity: switch.unnamed_p316m_aquarium_light
+      name: Aquarium Light
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.unnamed_p316m_co2_generator
+      name: CO2 Generator
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.unnamed_p316m_aquarium_pump
+      name: Aquarium Pump
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: The aquarium pump circulates the tank water. Toggle it?
+    - type: tile
+      entity: switch.unnamed_p316m_aquarium_heater
+      name: Aquarium Heater
+      icon: mdi:power-socket-us
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: The aquarium heater keeps the tank warm. Toggle it?
+  - type: grid
+    cards:
+    - type: heading
+      heading: Playroom
+      icon: mdi:toy-brick
+    - type: tile
+      entity: switch.kids_room_kids_room_main_lights
+      name: Main Lights
+      grid_options:
+        columns: 12
+      color: '#7FD4C4'
+    - type: tile
+      entity: binary_sensor.kids_room_occupancy
+      name: Occupancy
+      color: '#7FD4C4'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.kids_room_temperature
+      name: Temperature
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: media_player.shield
+      name: Shield (Cast)
+      color: '#7FD4C4'
+    - type: tile
+      entity: media_player.shield_2
+      name: Shield (Android TV)
+      color: '#7FD4C4'
+    - type: tile
+      entity: media_player.playroom_display
+      name: Display (Cast)
+      color: '#7FD4C4'
+    - type: tile
+      entity: media_player.playroom_display_2
+      name: Display (Vizio)
+      color: '#7FD4C4'
+  - type: grid
+    cards:
+    - type: heading
+      heading: Exercise Room
+      icon: mdi:dumbbell
+    - type: tile
+      entity: switch.exercise_room_exercise_room_main_lights
+      name: Main Lights
+      grid_options:
+        columns: 12
+      color: '#7C93A0'
+    - type: tile
+      entity: media_player.exercise_room_exercise_room
+      name: Apple TV
+      color: '#7C93A0'
+      grid_options:
+        columns: 12
+    - type: tile
+      entity: switch.exercise_room_appletv
+      name: Apple TV power
+      icon: mdi:power-socket-us
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.exercise_room_viziotv
+      name: Vizio TV
+      icon: mdi:power-socket-us
+      color: '#7C93A0'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Utility Room
+      icon: mdi:hvac
+      heading_style: subtitle
+    - type: tile
+      entity: switch.utility_room_utility_room_main_lights
+      name: Main Lights
+      grid_options:
+        columns: 12
+      color: '#6E8894'
+    - type: tile
+      entity: switch.mini_fridge
+      name: Mini Fridge
+      icon: mdi:power-socket-us
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: The mini fridge keeps food cold. Toggle it?
+    - type: tile
+      entity: switch.venmar
+      name: Venmar
+      icon: mdi:power-socket-us
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: Venmar normally runs on its own cycle. Toggle it?
+    - type: tile
+      entity: switch.unnamed_p316m_tapo_p316m_4
+      name: WD My Book
+      icon: mdi:power-socket-us
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: The Time Machine disk is on this plug; switching it off during a backup can damage the backup. Toggle it?
+    - type: tile
+      entity: switch.unnamed_p316m_tapo_p316m_1
+      name: Lutron Smart Hub
+      icon: mdi:power-socket-us
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: The Lutron hub runs the lights and fans. Toggle it?
+    - type: tile
+      entity: sensor.unnamed_p316m_tapo_p316m_6_current_consumption
+      name: Modem power
+      icon: mdi:router-network
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unnamed_p316m_tapo_p316m_2_current_consumption_2
+      name: UniFi Gateway power
+      icon: mdi:router-network
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unnamed_p316m_tapo_p316m_5_current_consumption
+      name: UniFi Switch power
+      icon: mdi:router-network
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.unnamed_p316m_tapo_p316m_3_current_consumption_2
+      name: Mac Mini host power
+      icon: mdi:server
+      color: '#6E8894'
+      grid_options:
+        columns: 6
+    - type: heading
+      heading: Downstairs Hallway
+      icon: mdi:stairs-down
+      heading_style: subtitle
+    - type: tile
+      entity: switch.downstairs_hallway_downstairs_hallway_sconces
+      name: Sconces
+      grid_options:
+        columns: 12
+      color: '#A9998A'
+- title: Exterior
+  path: home-exterior
+  icon: mdi:tree
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Front Exterior
+      icon: mdi:door-open
+    - type: picture-glance
+      title: Front Door
+      camera_image: camera.front_door_fluent
+      entities:
+      - entity: binary_sensor.front_door_visitor
+        name: Visitor
+      - entity: binary_sensor.front_door_motion
+        name: Motion
+      - entity: binary_sensor.front_door_person
+        name: Person
+    - type: tile
+      entity: switch.front_exterior_front_exterior_driveway_light
+      name: Driveway Light
+      color: '#8FB996'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.front_exterior_front_exterior_string_lights
+      name: String Lights
+      color: '#8FB996'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: camera.front_door_fluent
+      name: Doorbell Recordings
+      icon: mdi:play-box-multiple
+      color: '#8FB996'
+      hide_state: true
+      tap_action:
+        action: navigate
+        navigation_path: /media-browser
+      grid_options:
+        columns: 12
+    - type: tile
+      entity: switch.front_door_push_notifications
+      name: Doorbell Notifications
+      color: '#8FB996'
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.front_door_privacy_mode
+      name: Doorbell Privacy Mode
+      color: '#8FB996'
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Back Exterior
+      icon: mdi:fence
+    - type: tile
+      entity: switch.back_exterior_back_exterior_deck_lights
+      name: Deck Lights
+      grid_options:
+        columns: 12
+      color: '#8FB996'
+    - type: heading
+      heading: Garage
+      icon: mdi:garage
+      heading_style: subtitle
+    - type: tile
+      entity: switch.bedside_lamp
+      name: Radon Fan
+      grid_options:
+        columns: 12
+      icon: mdi:fan
+      color: '#8FB996'
+      icon_tap_action:
+        action: toggle
+        confirmation:
+          text: The radon fan runs all the time. Toggle it?

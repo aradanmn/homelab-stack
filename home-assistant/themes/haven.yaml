@@ -1,0 +1,88 @@
+Haven:
+  # Shared layout tokens (mode-independent)
+  ha-card-border-radius: "18px"
+  ha-card-border-width: "0px"
+  mdc-shape-medium: "18px"
+  ha-card-header-font-size: "20px"
+  paper-font-common-base_-_font-family: >-
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+  mdc-typography-font-family: >-
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+  modes:
+    light:
+      primary-color: "#3B6E64"
+      dark-primary-color: "#2A4F48"
+      light-primary-color: "#DCE9E5"
+      accent-color: "#E3A857"
+
+      primary-background-color: "#F7F5F1"
+      secondary-background-color: "#FFFFFF"
+      card-background-color: "#FFFFFF"
+      divider-color: "#E4E0D8"
+
+      primary-text-color: "#24302D"
+      secondary-text-color: "#5B6B67"
+      disabled-text-color: "#9AA6A2"
+      text-primary-color: "#FFFFFF"
+
+      state-icon-color: "#7C8985"
+      state-icon-active-color: "#E3A857"
+      state-active-color: "#E3A857"
+      paper-item-icon-color: "#7C8985"
+      paper-item-icon-active-color: "#E3A857"
+
+      app-header-background-color: "#3B6E64"
+      app-header-text-color: "#FFFFFF"
+      app-header-edit-background-color: "#2A4F48"
+
+      sidebar-background-color: "#FFFFFF"
+      sidebar-text-color: "#24302D"
+      sidebar-icon-color: "#5B6B67"
+      sidebar-selected-icon-color: "#3B6E64"
+      sidebar-selected-text-color: "#3B6E64"
+
+      switch-checked-color: "#3B6E64"
+      switch-unchecked-button-color: "#FFFFFF"
+      switch-unchecked-track-color: "#D8D3C8"
+
+      ha-card-box-shadow: "0px 2px 8px 0px rgba(36, 48, 45, 0.08)"
+
+    dark:
+      primary-color: "#7FD4C4"
+      dark-primary-color: "#5FB3A3"
+      light-primary-color: "#2A3B37"
+      accent-color: "#F0B860"
+
+      primary-background-color: "#1C1C1E"
+      secondary-background-color: "#242426"
+      card-background-color: "#242426"
+      divider-color: "#3A3A3C"
+
+      primary-text-color: "#EDEFEE"
+      secondary-text-color: "#A9B3B0"
+      disabled-text-color: "#5B6864"
+      text-primary-color: "#1C1C1E"
+
+      state-icon-color: "#8A9490"
+      state-icon-active-color: "#F0B860"
+      state-active-color: "#F0B860"
+      paper-item-icon-color: "#8A9490"
+      paper-item-icon-active-color: "#F0B860"
+
+      app-header-background-color: "#1C1C1E"
+      app-header-text-color: "#EDEFEE"
+      app-header-edit-background-color: "#242426"
+
+      sidebar-background-color: "#1C1C1E"
+      sidebar-text-color: "#EDEFEE"
+      sidebar-icon-color: "#A9B3B0"
+      sidebar-selected-icon-color: "#7FD4C4"
+      sidebar-selected-text-color: "#7FD4C4"
+
+      switch-checked-color: "#7FD4C4"
+      switch-unchecked-button-color: "#A9B3B0"
+      switch-unchecked-track-color: "#3A3A3C"
+
+      ha-card-border-width: "1px"
+      ha-card-box-shadow: "none"

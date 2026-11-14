@@ -1,0 +1,6 @@
+# 2026-09-13: static import retired. Traefik now issues and auto-renews
+# its own wildcard cert via ACME DNS-01 (see docker-compose.yml's
+# cloudflare certificatesResolver and routers.yml's wildcard-acme-trigger
+# router) -- verified live in production, cert issued today, valid through
+# 2026-12-12. NPM's imported cert (./certs/fullchain.pem, privkey.pem) is
+# no longer referenced; kept on disk but unused, not deleted.

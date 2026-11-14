@@ -1,0 +1,9 @@
+# Copy to /config/packages/site.yaml on Home Assistant and edit. The real file
+# is not kept in git. Every alert and automation here notifies "phones"; this
+# group decides which devices that means.
+notify:
+  - platform: group
+    name: phones
+    services:
+      - action: mobile_app_your_phone
+      # - action: mobile_app_second_phone

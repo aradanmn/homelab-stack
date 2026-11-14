@@ -1,0 +1,305 @@
+# Homelab stack: Traefik reverse proxy with a wildcard certificate, AdGuard
+# Home (plus a sync to a second copy), Glances, a Time Machine share and
+# Scrypted, on one Docker host.
+#
+# Nothing about the site is written in this file. Two env files feed it:
+#   .env                      addresses and the domain (not secret, not
+#                             committed; copy .env.example and fill it in)
+#   /run/homelab-stack/env    secrets, fetched at boot into memory-only
+#                             storage by scripts/homelab-stack-secrets.service
+# scripts/homelab-stack.service passes both to `docker compose up -d`. A
+# value written as ${NAME:?} below stops the deploy with an error when it is
+# missing, before any container is touched, rather than starting a proxy
+# with empty routes.
+#
+# Every service uses `restart: always`, not `unless-stopped`: a clean host
+# shutdown stops the containers the way `docker stop` does, and
+# `unless-stopped` then leaves them down after the reboot.
+
+networks:
+  proxy:
+    name: proxy
+  socket_proxy:
+    name: socket_proxy
+    internal: true  # traefik reaches the Docker API only through the proxy below, never directly
+
+services:
+  # --- Reverse proxy ---
+
+  socket-proxy:
+    container_name: socket-proxy
+    image: tecnativa/docker-socket-proxy:0.2.0
+    restart: always
+    networks:
+      - socket_proxy
+    environment:
+      - CONTAINERS=1
+      - SERVICES=1
+      - NETWORKS=1
+      - LOG_LEVEL=info
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # NOT read_only: the entrypoint sed's a baked-in haproxy.cfg.template
+    # into haproxy.cfg in the same directory at startup -- a tmpfs mount
+    # there wipes the template along with providing write access, and
+    # there's no clean file-level workaround for this image. Security still
+    # rests on real controls: internal-only network (no external route),
+    # no-new-privileges, docker.sock mounted read-only, and the image's own
+    # API scoping to just CONTAINERS/SERVICES/NETWORKS.
+    security_opt:
+      - no-new-privileges:true
+
+  traefik:
+    container_name: traefik
+    # 2026-11-07: was traefik:3.3. Traefik 3.0-3.5 talk to Docker with API v1.24,
+    # which Docker Engine 29 (minimum API raised) rejects: the docker provider
+    # loads no containers and every router 404s. 3.6.1+ negotiates the API version.
+    image: traefik:3.6
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - socket-proxy
+    networks:
+      - proxy
+      - socket_proxy
+    ports:
+      # Defaults match production (80/443). Override via TRAEFIK_HTTP_PORT/
+      # TRAEFIK_HTTPS_PORT env vars for pre-cutover verification alongside
+      # NPM, which still owns 80/443 until the actual cutover moment.
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"
+    command:
+      - --global.checkNewVersion=true
+      - --global.sendAnonymousUsage=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:443
+      # 2026-09-13: dedicated plain-HTTP entrypoint for Traefik's own /ping
+      # liveness check (200 "OK"), consumed by blackbox-exporter over the
+      # internal "proxy" network only -- deliberately NOT published in
+      # `ports:` above, no host-facing exposure needed. Tested first in an
+      # isolated throwaway container before touching this live one (same
+      # precaution as the ACME work below): reusing the existing
+      # `websecure` entrypoint instead of a dedicated one was tried first
+      # and silently 404'd -- ping@internal's auto-generated router has no
+      # `tls` stanza, so it never actually matches on an HTTPS-only
+      # entrypoint. A plain HTTP entrypoint (Traefik's own documented
+      # default shape, just not on the default 8080/"traefik" name) is the
+      # only combination that reliably worked in testing.
+      - --entrypoints.ping.address=:8080
+      - --ping=true
+      - --ping.entryPoint=ping
+      - --api=true
+      - --api.dashboard=true
+      # 2026-11-01: Prometheus metrics on the internal ping entrypoint (same
+      # plain-HTTP :8080 that /ping already uses, never published in
+      # `ports:`), scraped by the `traefik` job in appdata/prometheus. Feeds
+      # traefik_service_requests_total into the maintainer bot's usage
+      # profile (claude_sessions maintainer/usage_profile.py) as the "is
+      # anyone using the web services" signal.
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entryPoint=ping
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+      - --log=true
+      - --log.filePath=/logs/traefik.log
+      - --log.level=INFO
+      - --accessLog=true
+      - --accessLog.filePath=/logs/access.log
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=proxy
+      - --providers.file.directory=/rules
+      - --providers.file.watch=true
+      # Static cert import -- NPM's existing wildcard cert, valid to
+      # 2026-11-13 -- see rules/tls.yml. Kept as-is while the ACME resolver
+      # below proves itself; remove once a real cloudflare-issued cert is
+      # confirmed in acme.json, to avoid two certs both claiming the same
+      # SNI.
+      #
+      # 2026-09-13: real ACME renewal, DNS-01 via Cloudflare (required for
+      # a wildcard -- no public HTTP-01 endpoint exists for this internal
+      # domain). CF_DNS_API_TOKEN is the existing `homelab` Bitwarden
+      # Secrets Manager token (already verified live to have DNS write
+      # access on the zone), not a new credential.
+      - --certificatesresolvers.cloudflare.acme.email=${ACME_EMAIL:?set ACME_EMAIL in .env}
+      - --certificatesresolvers.cloudflare.acme.storage=/acme/acme.json
+      - --certificatesresolvers.cloudflare.acme.dnschallenge=true
+      - --certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare
+      # Before asking Let's Encrypt to validate, Traefik checks that the
+      # challenge record is visible. By default it asks the container's own
+      # resolver, which here is the local AdGuard: that kept answering "no
+      # such record" from its cache until the check timed out, and every
+      # renewal since 2026-11-12 failed. Ask public resolvers instead.
+      - --certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+      # Default resolver for every router on this entrypoint that doesn't
+      # explicitly set its own -- covers all of rules/routers.yml and the
+      # Docker-label-based routers (grafana, traefik dashboard) uniformly.
+      - --entrypoints.websecure.http.tls.certResolver=cloudflare
+      # 2026-09-13, real incident: --certificatesresolvers.cloudflare.acme.
+      # domains[0].main=... crash-looped the LIVE proxy for ~1 minute
+      # ("field not found, node: domains") -- that field doesn't exist on
+      # the acme struct for this version, confirmed via both CLI and a
+      # static YAML config file. The actual mechanism (per Traefik's own
+      # docs, verified via web search after two wrong guesses) is a
+      # ROUTER-level tls.domains declaration, which is why the wildcard
+      # trigger below lives in rules/routers.yml instead, not here.
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+      # Read by rules/routers.yml, which Traefik runs as a template
+      # ({{ env "NAME" }}). Required here so a missing value fails the
+      # deploy; the template itself would quietly use an empty string.
+      - DOMAIN=${DOMAIN:?set DOMAIN in .env}
+      - UNIFI_URL=${UNIFI_URL:?set UNIFI_URL in .env}
+      - BLUEMAP_URL=${BLUEMAP_URL:?set BLUEMAP_URL in .env}
+      - SCRYPTED_URL=${SCRYPTED_URL:?set SCRYPTED_URL in .env}
+      - NAS_URL=${NAS_URL:?set NAS_URL in .env}
+      - HA_URL=${HA_URL:?set HA_URL in .env}
+    volumes:
+      - ./rules:/rules:ro
+      - ./certs:/certs:ro
+      - ./appdata/traefik:/acme
+      - ./logs/traefik:/logs
+    labels:
+      - "traefik.enable=true"
+      # "-web" suffix deliberate, matching grafana-web/ns1-web/ns2-web/ha-web:
+      # a bare "traefik" here collides with this container's own Docker name,
+      # which broke internal container-to-container DNS resolution (see the
+      # ping-probe commit) -- renamed 2026-09-13 from the bare name.
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik-web.${DOMAIN}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+
+  # --- Dashboard ---
+
+  # Static launcher page for every homelab web UI (links only: no Docker
+  # socket, no API credentials, so it holds nothing worth stealing).
+  glances:
+    container_name: glances
+    image: nicolargo/glances:4.5.9-full
+    restart: always
+    pid: host
+    networks:
+      - socket_proxy
+      - proxy
+    ports:
+      - "61208:61208"
+    environment:
+      - TZ=America/Chicago
+      - GLANCES_OPT=-w
+      - DOCKER_HOST=tcp://socket-proxy:2375
+    volumes:
+      - /:/rootfs:ro
+      - /etc/os-release:/etc/os-release:ro
+      - ./appdata/glances/glances.conf:/etc/glances/glances.conf:ro
+    security_opt:
+      - no-new-privileges:true
+
+  adguard:
+    container_name: adguard
+    image: adguard/adguardhome:v0.107.80   # same version LXC 100 ran at migration
+    restart: always
+    networks:
+      - proxy
+    ports:
+      # DNS on the host's :53. The host has one address, by DHCP reservation
+      # (reservations, never device-static, so the hostname registers in
+      # local DNS); the network's DHCP DNS option points at it.
+      - "53:53/udp"
+      - "53:53/tcp"
+      # The web UI/API (port 80 inside) is not published: Traefik routes
+      # adguard.<domain> / ns1-web.<domain> to it over the proxy network
+      # (labels below). The second AdGuard copy on the Home Assistant box is
+      # kept in step by the adguard-sync service below.
+    volumes:
+      # conf: AdGuardHome.yaml from claude_sessions/adguard-backup (nightly API
+      # backup) with bind_host/http.address left at 0.0.0.0 (ports are bound
+      # outside). work: data/ from the vzdump of LXC 100 (/opt/AdGuardHome/data:
+      # filters, stats.db, querylog.json, sessions.db).
+      - ./appdata/adguard/conf:/opt/adguardhome/conf
+      - ./appdata/adguard/work:/opt/adguardhome/work
+    environment:
+      - TZ=America/Chicago
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adguard.rule=Host(`adguard.${DOMAIN}`) || Host(`ns1-web.${DOMAIN}`)"
+      - "traefik.http.routers.adguard.entrypoints=websecure"
+      - "traefik.http.routers.adguard.tls=true"
+      - "traefik.http.services.adguard.loadbalancer.server.port=80"
+    # Host prerequisites (bootstrap-host.sh): systemd-resolved DNSStubListener=no
+    # so :53 is free, and the host's own resolver pointed at the second copy
+    # (the HA add-on), never at this container.
+
+  # Keeps Home Assistant Green's AdGuard add-on (the second DNS server) identical
+  # to the origin above: rewrites, filters, settings. Origin over the proxy
+  # network, replica over the LAN (the add-on's web port 3000 is exposed and its
+  # "front door" is open, so it needs no login). The origin login comes from BWS
+  # (adguardhome-sync-env: ORIGIN_USERNAME=, ORIGIN_PASSWORD=).
+  # v0.9.6 was current on 2026-11-07 (the version it logged on first start).
+  adguard-sync:
+    container_name: adguard-sync
+    image: ghcr.io/bakito/adguardhome-sync:v0.9.6
+    restart: always
+    networks:
+      - proxy
+    depends_on:
+      - adguard
+    env_file:
+      - /run/homelab-stack/adguardhome-sync.env
+    environment:
+      - TZ=America/Chicago
+      - ORIGIN_URL=http://adguard
+      - REPLICA1_URL=${ADGUARD_REPLICA_URL:?set ADGUARD_REPLICA_URL in .env}
+      - RUN_ON_START=true
+      - CRON=*/10 * * * *
+
+  timemachine:
+    container_name: timemachine
+    image: mbentley/timemachine:smb
+    restart: always
+    networks:
+      - proxy          # no inbound use; keeps it off the default bridge
+    ports:
+      - "445:445"      # all host addresses; clients find it by the Bonjour name
+      - "139:139"
+    env_file:
+      - /run/homelab-stack/timemachine.env   # BWS timemachine-env: PASSWORD=<tmuser password>
+    environment:
+      - TM_USERNAME=tmuser                   # share user from LXC 104 (uid 1000 there)
+      - TM_UID=1000
+      - TM_GID=1000
+      - SET_PERMISSIONS=true                 # top folder only; does NOT fix files inside an existing bundle (docs/services.md, timemachine)
+      - VOLUME_SIZE_LIMIT=1460 G             # the 80% cap LXC 104 enforced (timemachine/smb.conf)
+      - SHARE_NAME=TimeMachine
+      - WORKGROUP=WORKGROUP
+      - MIMIC_MODEL=TimeCapsule8,119
+    volumes:
+      # The WD My Book, mounted on the host from fstab (UUID c9e83c5b-...).
+      # Path follows TM_USERNAME: /opt/<user>.
+      - /mnt/timemachine:/opt/tmuser
+    tmpfs:
+      - /run/samba
+    # The container's own avahi only speaks on the bridge, so advertisement is
+    # done by the host's avahi-daemon with timemachine/avahi-timemachine.service
+    # installed as /etc/avahi/services/timemachine.service.
+
+  scrypted:
+    container_name: scrypted
+    image: ghcr.io/koush/scrypted:latest   # vendor ships :latest only; LXC 10443 ran the same
+    restart: unless-stopped
+    network_mode: host                      # HomeKit/mDNS and RTP need the real interfaces;
+                                            # the HomeKit plugin is pinned to this host's IoT-VLAN address
+    volumes:
+      # Restored from the vzdump of LXC 10443 (mp0 /root/.scrypted/volume, backup=1).
+      - ./appdata/scrypted/volume:/server/volume
+    environment:
+      - TZ=America/Chicago
+    # No SCRYPTED_DOCKER_AVAHI: the host runs avahi-daemon for Time Machine, and
+    # the HomeKit plugin's built-in mDNS advertiser coexists with it (same
+    # arrangement as a bare-metal Homebridge). No watchtower: updates are a
+    # deliberate docker compose pull scrypted && up -d, like every other image here.

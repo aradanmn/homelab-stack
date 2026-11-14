@@ -1,0 +1,22 @@
+name: leak-check
+# Fails when site-specific detail (a real address, the real domain, a personal
+# notify target) is in the tracked files. The real domain cannot be written
+# here, so it comes from the repository secret LEAK_EXTRA_PATTERNS; pull
+# requests from forks do not get secrets and run the built-in patterns only.
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  leak-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the check itself
+        run: scripts/leak-check-test.sh
+      - name: Scan the tree
+        env:
+          LEAK_EXTRA_PATTERNS: ${{ secrets.LEAK_EXTRA_PATTERNS }}
+        run: scripts/leak-check.sh
