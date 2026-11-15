@@ -50,7 +50,7 @@ fails=0
 check() { if "$@"; then :; else echo "FAIL: $*"; fails=$((fails + 1)); fi; }
 full_vault() {
   vault homeassistant=ha-token healthchecks-ping-url=https://hc/ping reolink=user:pass minecraft-stack-env=RCON_PASSWORD=rc1 \
-        github-token-claude-lxc105=test-token unifi=unifi-key "$@"
+        github-token-claude-lxc105=test-token unifi=unifi-key claude-code-oauth-env=CLAUDE_CODE_OAUTH_TOKEN=tok1 "$@"
 }
 
 echo "1. happy path"
@@ -66,9 +66,10 @@ check [ "$(stat -c %a "$work/out/homeassistant")" = 600 ]
 check [ "$(stat -c %a "$work/out")" = 700 ]
 check [ "$(cat "$work/out/reolink")" = user:pass ]
 check [ "$(cat "$work/out/minecraft-stack.env")" = RCON_PASSWORD=rc1 ]
+check [ "$(cat "$work/out/claude-code-oauth.env")" = CLAUDE_CODE_OAUTH_TOKEN=tok1 ]
 check [ ! -e "$work/out/cloudflare" ]           # retired 2026-11-01: no consumer on 105 (claude_sessions#28)
 check [ ! -e "$work/out/gmail_app_password" ]   # retired with it
-check [ "$(find "$work/out" -mindepth 1 -type f | wc -l)" -eq 8 ]     # 3 required + unifi + healthchecks + gh-token.env + bootstrap + unmanaged
+check [ "$(find "$work/out" -mindepth 1 -type f | wc -l)" -eq 9 ]     # 3 required + unifi + healthchecks + claude-code-oauth.env + gh-token.env + bootstrap + unmanaged
 check test -z "$(grep 'skipped optional' "$work/stderr")"
 check grep -q 'fallback bundle refreshed' "$work/stderr"
 check [ -s "$state/bundle.cred" ]
@@ -129,7 +130,7 @@ printf 'stale' > "$work/out/homeassistant"; chmod 0644 "$work/out/homeassistant"
 run; rc=$?
 check [ "$rc" -eq 0 ]
 check grep -q 'WARNING using cached bundle' "$work/stderr"
-check grep -q 'restored 7 files from the fallback bundle' "$work/stderr"   # scenario 2's set: 8 minus unifi
+check grep -q 'restored 7 files from the fallback bundle' "$work/stderr"   # scenario 2's set: 9 minus unifi and claude-code-oauth.env
 check [ "$(stat -c %a "$work/out/homeassistant")" = 600 ]
 check [ "$(stat -c %a "$work/out")" = 700 ]
 check [ ! -e "$work/out/unifi" ]      # scenario 2's bundle was taken after unifi left the vault

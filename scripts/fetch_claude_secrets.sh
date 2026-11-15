@@ -33,6 +33,7 @@ declare -A REQUIRED=(
 declare -A OPTIONAL=(
   [healthchecks-ping-url]=healthchecks-ping-url  # no host consumer since 2026-11-07 (the HA dead-man automation holds its own copy); kept while the vault entry exists
   [unifi]=unifi
+  [claude-code-oauth-env]=claude-code-oauth.env  # one CLAUDE_CODE_OAUTH_TOKEN=... line from `claude setup-token`; sourced by ~/.profile and ~/.bashrc
 )
 # $OUT/gh-token.env is one "GH_TOKEN=<classic PAT>" line (claude_sessions#24
 # step 4d). Env-file form rather than a bare value because it has two readers:
