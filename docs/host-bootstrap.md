@@ -317,6 +317,7 @@ ln -sf /home/claude/.local/bin/claude /usr/local/bin/claude
 runuser -l claude -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); mkdir -p ~/.config/systemd/user && cp ~/workspace/claude_sessions/maintainer/systemd/claude-remote-control.service ~/workspace/claude_sessions/maintainer/systemd/claude-archive-backfill.* ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now claude-remote-control.service claude-archive-backfill.timer; systemctl --user is-active claude-remote-control.service claude-archive-backfill.timer'
 ```
 Expect `active` twice (`activating` means the unit is crash-looping: `journalctl --user -u claude-remote-control` as claude).
+Remote Control needs a full login, not the long-lived token. As `claude`, once: `env -u CLAUDE_CODE_OAUTH_TOKEN claude auth login`, then `env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status` must show `loggedIn: true`. Keep `CLAUDE_CODE_OAUTH_TOKEN` out of `~/.profile`, the unit and its drop-ins (`docs/secrets.md`, "The Claude Code long-lived token"). Starting or restarting the unit ends any live phone session, so do it before the check below, not during one.
 Check: open the Claude app, pick the `claude_sessions · homelab` environment and start a session; it runs on the box.
 
 The maintainer sweep bot (users `maintainer` and `maintainer-ctl`, their units, the `maintainer` machine-account token) is re-installed from `claude_sessions/maintainer/README.md`, steps 1 to 5. It is not needed for the house to work; do it after everything else works.

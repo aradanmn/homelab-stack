@@ -102,6 +102,7 @@ written byte-for-byte; the bootstrap token itself is written to
 | `reolink` | claude `reolink` | `~/doorbell-collect` collect.py, pull_hist.py, zone.py (run by hand) |
 | `bitwarden-secretsmanager-token` | the unit's own credential | interactive `bws` |
 | `gh-token.env` | claude `github-token-claude-lxc105` (classic PAT, `repo project read:org`), written as one `GH_TOKEN=...` line | `gh` in interactive sessions and in `render_session.py`'s SessionEnd/UserPromptSubmit hooks, through `~/.profile` and the two user units below (#24 step 4d) |
+| `claude-code-oauth.env` | claude `claude-code-oauth-env` (optional; one `CLAUDE_CODE_OAUTH_TOKEN=<token>` line, the whole line is the secret value) | interactive shells of the `claude` user only, through `~/.bashrc`; see "The Claude Code long-lived token" below. **Never** given to Remote Control |
 | `unifi` | optional, same name | none automated (interactive UniFi API); absent from the vault means absent from the tmpfs |
 
 The first rows and the gh token are
@@ -199,7 +200,7 @@ for u in claude-remote-control claude-archive-backfill; do
 done
 systemctl --user daemon-reload
 systemctl --user restart claude-archive-backfill.timer
-systemctl --user restart claude-remote-control.service      # ends any live phone session: do it between sessions
+systemctl --user restart claude-remote-control.service      # ends and ARCHIVES every live phone session, see "Restarting Remote Control" below: do it between sessions
 ```
 
 Verify, in a new login shell: `gh auth status` must say the token comes
@@ -221,3 +222,91 @@ it would recreate `hosts.yml` and `gh` would ignore it anyway while
 `GH_TOKEN` is set. Rotation afterwards: new PAT in the vault, `systemctl
 restart claude-secrets.service`, new login shell; running units pick it up
 on their next start.
+
+#### The Claude Code long-lived token (2026-11-15)
+
+`claude setup-token` prints a long-lived OAuth token (`sk-ant-oat01-...`).
+Per the Claude Code authentication docs it is valid for one year and can
+only make model requests. It is stored in BWS as `claude-code-oauth-env`,
+and the value is the whole line `CLAUDE_CODE_OAUTH_TOKEN=<token>`,
+the same whole-file convention as `minecraft-stack-env` and `gh-token.env`.
+A bare token as the value does not work: the file is sourced as shell, so it
+must be an assignment. `fetch_claude_secrets.sh` writes it, optional, to
+`~/.secrets/claude-code-oauth.env` (claude, 0600).
+
+Its only consumer is the `claude` user's `~/.bashrc` (a per-host edit, not in
+any repo):
+
+```
+[ -r ~/.secrets/claude-code-oauth.env ] && { set -a; . ~/.secrets/claude-code-oauth.env; set +a; }
+```
+
+`~/.bashrc` returns early for non-interactive shells, and `~/.profile` pulls
+it in for login shells, so interactive and tmux shells get the token and
+user units do not. Check: `claude -p "say ok"` in a new shell.
+
+**The token must never reach Remote Control.** Two reasons, both from the
+Claude Code docs and both seen on this host:
+
+1. A setup-token token can only make model requests, so it cannot register a
+   Remote Control server or session. If `CLAUDE_CODE_OAUTH_TOKEN` is in the
+   environment, `claude remote-control`, `claude --remote-control` and
+   `/remote-control` fail.
+2. It outranks the normal login in Claude Code's credential order, so any
+   process that has it ignores the `/login` credential.
+
+So the token stays out of `~/.profile`, out of
+`claude-remote-control.service` and every drop-in under
+`claude-remote-control.service.d/`, and out of the user manager's
+environment. `systemctl --user show-environment | grep -c OAUTH` must print
+0. Remote Control uses a full `claude auth login` of the `claude` user
+instead (below).
+
+Side effect to know about: a shell that has the token cannot use the
+claude.ai connectors (Gmail, Calendar, Drive and so on) or `/schedule`.
+On 2026-11-15 `claude mcp list` showed the six claude.ai connectors without
+the token and none with it. To get them in one shell, run it as
+`env -u CLAUDE_CODE_OAUTH_TOKEN claude`.
+
+##### Renewal
+
+Neither credential renews itself unattended. Both dates belong in
+`claude_sessions/docs/expiry-registry.md`.
+
+| Credential | Used by | How long | Renew |
+|---|---|---|---|
+| `claude-code-oauth-env` (setup-token) | interactive shells' `claude -p` and sessions | one year per the docs (unverified on this account; the date is printed nowhere, so record the creation date) | On a machine with a browser (not over SSH: the wrapped login URL breaks when copied from a narrow terminal, giving "missing redirect_uri parameter"): `claude setup-token`. Edit the BWS secret so its value is the whole line `CLAUDE_CODE_OAUTH_TOKEN=<token>`, then as root `systemctl restart claude-secrets.service` (journal: "wrote 9 files"). New shells pick it up |
+| the `claude` user's full login (`claude auth login`) | `claude-remote-control.service` and, since those units carry no token, the model passes of the backfill timer | not stated in the docs. The host reports it: `env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status` prints `loginExpiresAt` (2026-12-13 on 2026-11-15; one user report says about 30 days) | As `claude`: `env -u CLAUDE_CODE_OAUTH_TOKEN claude auth login` (browser flow; the docs describe a code-paste prompt for when the browser cannot redirect back), then check `auth status`. Do not restart the unit afterwards without reading "Restarting Remote Control" below; whether the running server needs a restart to pick up the new login was not tested |
+
+Claude Code warns three days before a `/login` login expires, but only in an
+interactive session, which the Remote Control server is not. Check
+`loginExpiresAt` by hand when the registry date is near.
+
+##### Restarting Remote Control ends the phone sessions
+
+`claude-remote-control.service` runs `claude remote-control ...
+--no-create-session-in-dir`. Per the Remote Control docs a server started
+that way archives its sessions when it stops, so `systemctl --user restart
+claude-remote-control` (or a stop, or the process exiting) ends every session
+being served from the app, and on 2026-11-15 it did. Do it between sessions.
+To get one back, in the same directory and with the token unset:
+
+```
+env -u CLAUDE_CODE_OAUTH_TOKEN claude remote-control --session-id <id>      # id = the part of the session URL between /code/ and any ?
+```
+
+or `env -u CLAUDE_CODE_OAUTH_TOKEN claude --resume <local-id>` then
+`/remote-control`. The docs give about four hours for the first form after the
+server stopped, and say `--session-id` also unarchives a session on
+2.1.228 or later; neither was tested here.
+
+As root, without logging in as `claude`:
+
+```
+systemctl --user -M claude@ status claude-remote-control
+journalctl _SYSTEMD_USER_UNIT=claude-remote-control.service -n 15 --no-pager
+```
+
+(`journalctl -M claude@` does not work on this host.) The same unit also
+restarts itself when its process exits after about ten minutes without
+network (`Restart=always`); that is the other way phone sessions are lost.
