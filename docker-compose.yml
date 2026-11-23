@@ -202,7 +202,7 @@ services:
 
   adguard:
     container_name: adguard
-    image: adguard/adguardhome:v0.107.80   # same version LXC 100 ran at migration
+    image: adguard/adguardhome:v1.0.0
     restart: always
     networks:
       - proxy
