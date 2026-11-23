@@ -117,9 +117,9 @@ is UniFi at `https://10.0.1.1`.
 - **Reach:** `https://10.0.40.107:10443` (the Scrypted console; not
   behind Traefik, it is on the Media VLAN on purpose).
 - **Data:** `appdata/scrypted/volume/` (every plugin and setting).
-- **Update:** the vendor only publishes `:latest`, so
-  `docker compose pull scrypted && docker compose up -d scrypted` when
-  you choose to.
+- **Update:** the vendor only publishes `:latest`, so there is no tag
+  to change: `scripts/stack-update.sh apply scrypted` when you choose
+  to (see [updating.md](updating.md)).
 - **Check:** the console loads; the doorbell tile streams in the Home
   app. If the Home app shows no recording options, see claude_sessions#18.
 

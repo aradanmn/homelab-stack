@@ -240,7 +240,7 @@ services:
   # network, replica over the LAN (the add-on's web port 3000 is exposed and its
   # "front door" is open, so it needs no login). The origin login comes from BWS
   # (adguardhome-sync-env: ORIGIN_USERNAME=, ORIGIN_PASSWORD=).
-  # v0.9.6 was current on 2026-11-07 (the version it logged on first start).
+  # Update it before AdGuard Home itself (docs/updating.md).
   adguard-sync:
     container_name: adguard-sync
     image: ghcr.io/bakito/adguardhome-sync:v0.10.1
@@ -301,5 +301,5 @@ services:
       - TZ=America/Chicago
     # No SCRYPTED_DOCKER_AVAHI: the host runs avahi-daemon for Time Machine, and
     # the HomeKit plugin's built-in mDNS advertiser coexists with it (same
-    # arrangement as a bare-metal Homebridge). No watchtower: updates are a
-    # deliberate docker compose pull scrypted && up -d, like every other image here.
+    # arrangement as a bare-metal Homebridge). No watchtower: updates are
+    # deliberate (docs/updating.md), like every other image here.

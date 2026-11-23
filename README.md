@@ -42,8 +42,10 @@ docker logs <container> --since 1h
 ```
 
 - **Change a service:** edit `docker-compose.yml` on a branch, open a PR,
-  merge, then the three lines above. Pin image tags; never `:latest`
-  except Scrypted, which ships nothing else.
+  merge, then the three lines above. Pin the exact image version; the
+  only moving tags are the ones whose vendor ships nothing else
+  (Scrypted, Time Machine, socket-proxy).
+- **Update a service:** `docs/updating.md`, start to finish.
 - **Rotate a secret:** change it in the vault, then
   `sudo systemctl restart homelab-stack-secrets.service homelab-stack.service`.
 - **Add a web UI:** give the container `traefik.*` labels like the others.
