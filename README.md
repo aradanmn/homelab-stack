@@ -25,6 +25,7 @@ Written by Claude (Anthropic's Claude Code); see Authorship below.
 | `scripts/` | the native units and the collector scripts they run |
 | `timemachine/` | the Samba and Avahi config carried over from the old Time Machine host |
 | `docs/services.md` | **what each service is for, how to reach it, where its data is, how to check and update it** |
+| `docs/updating.md` | **how to update a service: pre-check, apply, verify, roll back** (`scripts/stack-update.sh`) |
 | `docs/host-bootstrap.md` | **rebuild the host from bare metal, step by step** |
 | `docs/secrets.md` | how secrets reach the stack from Bitwarden Secrets Manager without touching disk |
 | `docs/home-assistant.md` | **the HA Green: what is configured where, the dashboards, the NAS integration, how to recreate it all** |

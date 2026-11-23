@@ -12,9 +12,11 @@ is UniFi at `https://10.0.1.1`.
 - Reach it through Traefik at `https://<name>.home.example.com`. The
   names resolve through one wildcard rewrite in AdGuard
   (`*.home.example.com` to 10.0.10.10).
-- Update: edit the image tag in `docker-compose.yml`, commit, then
-  `sudo systemctl restart homelab-stack.service`. That runs
-  `docker compose up -d` with the secrets env file; only changed
+- Update: follow [updating.md](updating.md) (pre-check, tag change in a
+  pull request, `scripts/stack-update.sh apply <service>`, which
+  verifies and rolls back on failure). Underneath, a deploy is
+  `sudo systemctl restart homelab-stack.service`: it runs
+  `docker compose up -d` with the secrets env file, and only changed
   containers restart.
 - Logs: `docker logs <container> --since 1h`.
 - Data under `appdata/<service>/` is gitignored and backed up nightly by
