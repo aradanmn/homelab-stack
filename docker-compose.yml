@@ -54,7 +54,7 @@ services:
     # 2026-11-07: was traefik:3.3. Traefik 3.0-3.5 talk to Docker with API v1.24,
     # which Docker Engine 29 (minimum API raised) rejects: the docker provider
     # loads no containers and every router 404s. 3.6.1+ negotiates the API version.
-    image: traefik:3.6
+    image: traefik:3.7
     restart: always
     security_opt:
       - no-new-privileges:true
