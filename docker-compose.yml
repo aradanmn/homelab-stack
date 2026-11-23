@@ -243,7 +243,7 @@ services:
   # v0.9.6 was current on 2026-11-07 (the version it logged on first start).
   adguard-sync:
     container_name: adguard-sync
-    image: ghcr.io/bakito/adguardhome-sync:v0.9.6
+    image: ghcr.io/bakito/adguardhome-sync:v0.10.1
     restart: always
     networks:
       - proxy
